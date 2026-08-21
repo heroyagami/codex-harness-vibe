@@ -1,0 +1,48 @@
+{
+  "name": "@vibe-motion/template",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "postinstall": "node scripts/remotion-ensure-browser.mjs",
+    "remotion:ensure-browser": "node scripts/remotion-ensure-browser.mjs",
+    "remotion:studio": "node scripts/remotion-cli.mjs studio",
+    "remotion:bundle": "node scripts/remotion-cli.mjs bundle",
+    "remotion:compositions": "node scripts/remotion-cli.mjs compositions",
+    "remotion:render": "node scripts/remotion-render.mjs",
+    "render:verify": "node scripts/verify-rendered-clip.mjs",
+    "transition-handles:render": "node scripts/render-transition-handles.mjs",
+    "remotion:render:demo": "REMOTION_OUTPUT=default.mov pnpm run remotion:render",
+    "dev": "pnpm run remotion:studio",
+    "build": "pnpm run remotion:bundle",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test:eslint-rules": "node eslint-rules/absolute-fill-explicit-flex-direction.test.js",
+    "test:foreground-layout": "node --test scripts/foreground-layout.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm run test:eslint-rules && pnpm run test:foreground-layout && pnpm run lint && pnpm run typecheck && pnpm run remotion:compositions"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.438",
+    "@remotion/fonts": "4.0.438",
+    "@remotion/zod-types": "4.0.438",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.438",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@babel/parser": "7.24.1",
+    "@eslint/js": "^9.22.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "eslint": "^9.22.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.0.0",
+    "prettier": "3.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.62.1"
+  }
+}

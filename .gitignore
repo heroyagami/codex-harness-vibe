@@ -2,8 +2,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .private/
-vendor/
 reference/
+vendor/**/node_modules/
+vendor/**/__pycache__/
 runs/
 midscene_run/
 *.mp4
@@ -16,4 +17,3 @@ midscene_run/
 .env
 .env.*
 !.env.example
-

@@ -1,0 +1,16 @@
+{
+  "colorPrimary": "#c96442",
+  "colorPrimaryBg": "#e8e6dc",
+  "colorPrimaryHover": "color-mix(in oklab, var(--accent), black 8%)",
+  "colorPrimaryActive": "color-mix(in oklab, var(--accent), black 14%)",
+  "fontSize": 40,
+  "subtitleFontSize": 40,
+  "titleFontSize": 86,
+  "heroFontSize": 132,
+  "frameAspectRatio": "3:4",
+  "frameWidth": 1080,
+  "frameHeight": 1440,
+  "safeInset": 72,
+  "heroSafeInset": 108,
+  "borderRadius": 12
+}

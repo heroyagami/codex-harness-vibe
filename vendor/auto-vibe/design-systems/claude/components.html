@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claude (Anthropic) - 3:4 video components</title>
+    <meta name="description" content="Video-first reference components for Claude-inspired Remotion scenes." />
+    <style>
+      :root {
+        /* ─── Surface (3 levels) ─────────────────────────────────────────
+         * Parchment (bg) -> Ivory (surface) -> Warm Sand (surface-warm). */
+        --bg: #f5f4ed;
+        --surface: #faf9f5;
+        --surface-warm: #e8e6dc;   /* Warm Sand: subtitle backs, dividers, panels */
+
+        /* ─── Foreground ramp (4 levels) ────────────────────────────────
+         * Every gray carries a yellow-brown undertone. */
+        --fg: #141413;             /* Anthropic Near Black */
+        --fg-2: #3d3d3a;           /* Dark Warm: emphasized supporting text */
+        --muted: #5e5d59;          /* Olive Gray: secondary text */
+        --meta: #87867f;           /* Stone Gray: metadata and timestamps */
+
+        /* ─── Border (2 levels) ──────────────────────────────────────────
+         * Cream-tinted borders — the gentlest possible containment. */
+        --border: #f0eee6;         /* Border Cream — standard light-theme border */
+        --border-soft: #e8e6dc;    /* Border Warm — section dividers, emphasized containment */
+
+        /* ─── Accent ──────────────────────────────────────────────────────
+         * Terracotta Brand: the primary chromatic element on most screens.
+         * Used for highest-signal brand moments only. */
+        --accent: #c96442;
+        --accent-on: #faf9f5;      /* Ivory: foreground on terracotta */
+        --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+        --accent-active: color-mix(in oklab, var(--accent), black 14%);
+
+        /* ─── Semantic ────────────────────────────────────────────────────
+         * Sparse status tones for data callouts and timeline annotations. */
+        --success: #17a34a;
+        --warn: #eab308;
+        --danger: #b53333;         /* Error Crimson: warm red */
+
+        /* ─── Typography ──────────────────────────────────────────────────
+         * Anthropic Serif (Georgia fallback) for titles.
+         * Anthropic Sans for subtitles, labels, and body copy. */
+        --font-display: "Anthropic Serif", Georgia, "Times New Roman", serif;
+        --font-body: "Anthropic Sans", "Arial", system-ui, -apple-system, sans-serif;
+        --font-mono: "Anthropic Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+        /* Video type scale for 1080x1440 3:4 output. */
+        --text-xs: 24px;           /* Metadata, timestamps, quiet labels */
+        --text-sm: 30px;           /* Caption labels and small annotations */
+        --text-base: 40px;         /* Subtitle/body line */
+        --text-lg: 52px;           /* Large subtitle or supporting statement */
+        --text-xl: 68px;           /* Secondary title */
+        --text-2xl: 86px;          /* Scene title */
+        --text-3xl: 104px;         /* Chapter title */
+        --text-4xl: 132px;         /* Hero title */
+
+        --leading-body: 1.35;      /* Subtitle-safe, still editorial */
+        --leading-tight: 1.05;     /* Tight title cards */
+        --tracking-display: 0em;   /* Serif faces carry authority; no compression needed */
+
+        /* ─── Spacing ─────────────────────────────────────────────────────
+         * Larger rhythm for video frame composition. */
+        --space-1: 8px;
+        --space-2: 16px;
+        --space-3: 24px;
+        --space-4: 32px;
+        --space-5: 40px;
+        --space-6: 48px;
+        --space-8: 64px;
+        --space-12: 96px;
+
+        --section-y-desktop: 108px; /* Hero/title safe inset */
+        --section-y-tablet: 88px;   /* Standard overlay safe inset */
+        --section-y-phone: 72px;    /* Subtitle safe inset */
+
+        /* ─── Radius ──────────────────────────────────────────────────────
+         * Subtle softness for panels and subtitle backs. */
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --radius-pill: 9999px;     /* Chip-like elements (use sparingly) */
+
+        /* ─── Elevation ───────────────────────────────────────────────────
+         * Ring shadows (0px 0px 0px 1px) instead of drop shadows.
+         * Use ring shadows for static containment. */
+        --elev-flat: none;
+        --elev-ring: 0 0 0 1px var(--border);
+        --elev-raised: rgba(0, 0, 0, 0.08) 0px 12px 48px;
+
+        /* ─── Focus ring ──────────────────────────────────────────────────
+         * Compatibility token for browser previews. */
+        --focus-ring: 0 0 0 3px rgba(56, 152, 236, 0.3);
+
+        /* ─── Motion ──────────────────────────────────────────────────────
+         * Calm Remotion timings. */
+        --motion-fast: 400ms;
+        --motion-base: 800ms;
+        --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+        /* ─── Layout ──────────────────────────────────────────────────────
+         * 3:4 vertical frame defaults and safe margins. */
+        --container-max: 936px;
+        --container-gutter-desktop: 108px;
+        --container-gutter-tablet: 88px;
+        --container-gutter-phone: 72px;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--surface-warm);
+        color: var(--fg);
+        font-family: var(--font-body);
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: var(--space-6);
+      }
+      .frame {
+        width: min(72vw, 810px);
+        aspect-ratio: 3 / 4;
+        background: var(--bg);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--elev-raised);
+        position: relative;
+        overflow: hidden;
+        padding: var(--section-y-desktop) var(--container-gutter-desktop);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .frame-dark { background: var(--fg); color: var(--surface); }
+      .topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-3);
+        font-size: var(--text-xs);
+        color: var(--meta);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .signal { width: 64px; height: 6px; border-radius: var(--radius-pill); background: var(--accent); }
+      .title-stack { display: grid; gap: var(--space-5); }
+      h1, h2, p { margin: 0; }
+      h1, h2 {
+        font-family: var(--font-display);
+        font-weight: 500;
+        line-height: var(--leading-tight);
+        letter-spacing: var(--tracking-display);
+      }
+      h1 { font-size: var(--text-4xl); max-width: 7.4em; }
+      h2 { font-size: var(--text-2xl); max-width: 8.5em; }
+      .support { font-size: var(--text-lg); line-height: var(--leading-body); color: var(--muted); max-width: 13em; }
+      .frame-dark .support, .frame-dark .topline { color: var(--border-soft); }
+      .subtitle {
+        font-size: var(--text-base);
+        line-height: var(--leading-body);
+        background: color-mix(in oklab, var(--surface), transparent 8%);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        box-shadow: var(--elev-ring);
+      }
+      .quote-card, .data-card, .code-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: var(--space-5);
+        box-shadow: var(--elev-ring);
+      }
+      .quote-card { display: grid; gap: var(--space-4); }
+      .quote-card blockquote { margin: 0; font-family: var(--font-display); font-size: var(--text-xl); line-height: var(--leading-tight); }
+      .meta { color: var(--meta); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; }
+      .data-card strong { display: block; color: var(--accent); font-family: var(--font-display); font-size: var(--text-3xl); line-height: 1; }
+      .data-card span { display: block; margin-top: var(--space-3); color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-body); }
+      .code-card { font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.45; color: var(--fg-2); }
+      .component-grid { display: grid; gap: var(--space-5); }
+      @media (max-width: 900px) {
+        .frame { width: min(92vw, 690px); padding: var(--section-y-tablet) var(--container-gutter-tablet); }
+        h1 { font-size: var(--text-3xl); }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="frame" aria-label="3:4 video component reference">
+        <div class="topline"><span>claude scene system</span><span>03:04</span></div>
+        <div class="title-stack">
+          <div class="signal" aria-hidden="true"></div>
+          <h1>Thoughtful conversations, made visible.</h1>
+          <p class="support">Warm editorial frames for subtitles, chapter cards, quotes, and model output.</p>
+        </div>
+        <p class="subtitle">Subtitle block: one spoken idea, high contrast, calm rhythm, enough space for playback.</p>
+      </section>
+    </main>
+  </body>
+</html>

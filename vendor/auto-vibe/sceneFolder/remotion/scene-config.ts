@@ -1,0 +1,15 @@
+export const SCENE_ID = "scene-template";
+export const FPS = 30;
+export const WIDTH = 1080;
+export const HEIGHT = 1440;
+export const DURATION_IN_FRAMES = 90;
+export const VISUAL_THEME = "dark" as const;
+export const TIMELINE_ORIGIN_SECONDS = "0.000";
+export const FRAME_RANGE = [0, 90] as const;
+export const RENDER_RANGE_SECONDS = ["0.000", "3.000"] as const;
+export const BACKGROUND_IMAGE = "img/darkbg.png";
+export const BACKGROUND_WIDTH = 1480;
+export const BACKGROUND_HEIGHT = 1840;
+export const BACKGROUND_COLOR = "#08090b";
+export const BACKGROUND_ANCHOR = { name: "top_left", x: 0, y: 0 } as const;
+export const TRANSITION_HANDLES = { entry: false, exit: false } as const;

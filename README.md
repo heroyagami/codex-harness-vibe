@@ -6,14 +6,13 @@
 
 ## 仓库边界
 
-这个公开仓库只保存我们自己的总控代码、配置、测试和安装脚本，不包含：
+这是用户自用的私有融合仓库，包含 Harness 总控和已授权的 auto-motion 生产底座。它不包含：
 
-- 购买的 `sxhzju/auto-motion` 源码；
 - 猫学长头像或背景；
 - 案例音频、字幕、素材、运行目录或成片；
 - API Key、模型凭据或本机配置。
 
-首次安装会使用你当前电脑的 GitHub 权限拉取已授权的上游源码，存入 Git 忽略目录；随后删除上游头像并覆盖为本项目生成的中性深浅背景。
+底座中的上游头像已删除，背景已替换为本项目生成的中性深浅背景。仓库必须保持私有，不得公开、转售或向未获授权的人分发。
 
 ## 新电脑直接使用
 
@@ -21,17 +20,16 @@
 git clone https://github.com/heroyagami/codex-harness-vibe.git
 cd codex-harness-vibe
 
-.\setup.ps1
 .\legal-motion.ps1 doctor
 ```
 
-如果购买源码需要指定版本：
+仓库已经自带完整生产底座，不需要再次下载。只有主动同步购买源码的新版本时，先备份并移除本地 `vendor` 与 `.private`，再运行：
 
 ```powershell
 .\setup.ps1 -Ref "提交号或分支名"
 ```
 
-安装要求：Git、Python 3.11+、Node.js、pnpm、ffmpeg、Claude Code、Codex CLI。Python 环境需安装 Pillow；Remotion 依赖会在第一次生产时自动安装。
+安装要求：Git、Python 3.11+、Node.js、pnpm、ffmpeg、Claude Code、Codex CLI。Python 环境需安装 Pillow；Remotion 的 `node_modules` 会在第一次生产时自动安装，不进入 GitHub。
 
 ## 制作视频
 
@@ -65,4 +63,3 @@ cd codex-harness-vibe
 - 序列审查拒绝连续三个高度相似的主体布局。
 
 更多说明见 [ARCHITECTURE.md](ARCHITECTURE.md) 和 [COMPLETION-CHECKLIST.md](COMPLETION-CHECKLIST.md)。
-

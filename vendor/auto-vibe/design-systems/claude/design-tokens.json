@@ -1,0 +1,757 @@
+{
+  "schemaVersion": 1,
+  "format": "od-design-tokens/v1",
+  "contract": "TOKEN_SCHEMA",
+  "generatedAt": "2026-06-06T00:00:00.000Z",
+  "source": {
+    "tokensCss": "tokens.css",
+    "tokenContractReport": "source/token-contract.report.json"
+  },
+  "summary": {
+    "totalTokens": 56,
+    "declaredTokens": 56,
+    "sourceBackedTokens": 56,
+    "sourceBackedA1": 26,
+    "fallbackTokens": 26,
+    "aliasTokens": 0,
+    "layerCounts": {
+      "A1-identity": 8,
+      "B-slot": 4,
+      "A2": 26,
+      "A1-structure": 18
+    },
+    "score": 100,
+    "grade": "video-ready",
+    "recommendRebuild": false
+  },
+  "tokens": [
+    {
+      "name": "--bg",
+      "value": "#f5f4ed",
+      "type": "color",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --bg in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:21"
+      ],
+      "sourceName": "--bg",
+      "source": "tokens.css:21"
+    },
+    {
+      "name": "--surface",
+      "value": "#faf9f5",
+      "type": "color",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --surface in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:22"
+      ],
+      "sourceName": "--surface",
+      "source": "tokens.css:22"
+    },
+    {
+      "name": "--surface-warm",
+      "value": "#e8e6dc",
+      "type": "color",
+      "layer": "B-slot",
+      "confidence": "high",
+      "reason": "Video fixture declares --surface-warm in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:23"
+      ],
+      "sourceName": "--surface-warm",
+      "source": "tokens.css:23"
+    },
+    {
+      "name": "--fg",
+      "value": "#141413",
+      "type": "color",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --fg in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:27"
+      ],
+      "sourceName": "--fg",
+      "source": "tokens.css:27"
+    },
+    {
+      "name": "--fg-2",
+      "value": "#3d3d3a",
+      "type": "color",
+      "layer": "B-slot",
+      "confidence": "high",
+      "reason": "Video fixture declares --fg-2 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:28"
+      ],
+      "sourceName": "--fg-2",
+      "source": "tokens.css:28"
+    },
+    {
+      "name": "--muted",
+      "value": "#5e5d59",
+      "type": "color",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --muted in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:29"
+      ],
+      "sourceName": "--muted",
+      "source": "tokens.css:29"
+    },
+    {
+      "name": "--meta",
+      "value": "#87867f",
+      "type": "color",
+      "layer": "B-slot",
+      "confidence": "high",
+      "reason": "Video fixture declares --meta in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:30"
+      ],
+      "sourceName": "--meta",
+      "source": "tokens.css:30"
+    },
+    {
+      "name": "--border",
+      "value": "#f0eee6",
+      "type": "color",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --border in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:34"
+      ],
+      "sourceName": "--border",
+      "source": "tokens.css:34"
+    },
+    {
+      "name": "--border-soft",
+      "value": "#e8e6dc",
+      "type": "color",
+      "layer": "B-slot",
+      "confidence": "high",
+      "reason": "Video fixture declares --border-soft in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:35"
+      ],
+      "sourceName": "--border-soft",
+      "source": "tokens.css:35"
+    },
+    {
+      "name": "--accent",
+      "value": "#c96442",
+      "type": "color",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --accent in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:40"
+      ],
+      "sourceName": "--accent",
+      "source": "tokens.css:40"
+    },
+    {
+      "name": "--accent-on",
+      "value": "#faf9f5",
+      "type": "color",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --accent-on in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:41"
+      ],
+      "sourceName": "--accent-on",
+      "source": "tokens.css:41"
+    },
+    {
+      "name": "--accent-hover",
+      "value": "color-mix(in oklab, var(--accent), black 8%)",
+      "type": "color",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --accent-hover in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:42"
+      ],
+      "sourceName": "--accent-hover",
+      "source": "tokens.css:42"
+    },
+    {
+      "name": "--accent-active",
+      "value": "color-mix(in oklab, var(--accent), black 14%)",
+      "type": "color",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --accent-active in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:43"
+      ],
+      "sourceName": "--accent-active",
+      "source": "tokens.css:43"
+    },
+    {
+      "name": "--success",
+      "value": "#17a34a",
+      "type": "color",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --success in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:47"
+      ],
+      "sourceName": "--success",
+      "source": "tokens.css:47"
+    },
+    {
+      "name": "--warn",
+      "value": "#eab308",
+      "type": "color",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --warn in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:48"
+      ],
+      "sourceName": "--warn",
+      "source": "tokens.css:48"
+    },
+    {
+      "name": "--danger",
+      "value": "#b53333",
+      "type": "color",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --danger in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:49"
+      ],
+      "sourceName": "--danger",
+      "source": "tokens.css:49"
+    },
+    {
+      "name": "--font-display",
+      "value": "\"Anthropic Serif\", Georgia, \"Times New Roman\", serif",
+      "type": "fontFamily",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --font-display in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:54"
+      ],
+      "sourceName": "--font-display",
+      "source": "tokens.css:54"
+    },
+    {
+      "name": "--font-body",
+      "value": "\"Anthropic Sans\", \"Arial\", system-ui, -apple-system, sans-serif",
+      "type": "fontFamily",
+      "layer": "A1-identity",
+      "confidence": "high",
+      "reason": "Video fixture declares --font-body in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:55"
+      ],
+      "sourceName": "--font-body",
+      "source": "tokens.css:55"
+    },
+    {
+      "name": "--font-mono",
+      "value": "\"Anthropic Mono\", ui-monospace, \"JetBrains Mono\", Menlo, monospace",
+      "type": "fontFamily",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --font-mono in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:56"
+      ],
+      "sourceName": "--font-mono",
+      "source": "tokens.css:56"
+    },
+    {
+      "name": "--text-xs",
+      "value": "24px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-xs in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:59"
+      ],
+      "sourceName": "--text-xs",
+      "source": "tokens.css:59"
+    },
+    {
+      "name": "--text-sm",
+      "value": "30px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-sm in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:60"
+      ],
+      "sourceName": "--text-sm",
+      "source": "tokens.css:60"
+    },
+    {
+      "name": "--text-base",
+      "value": "40px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-base in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:61"
+      ],
+      "sourceName": "--text-base",
+      "source": "tokens.css:61"
+    },
+    {
+      "name": "--text-lg",
+      "value": "52px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-lg in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:62"
+      ],
+      "sourceName": "--text-lg",
+      "source": "tokens.css:62"
+    },
+    {
+      "name": "--text-xl",
+      "value": "68px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-xl in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:63"
+      ],
+      "sourceName": "--text-xl",
+      "source": "tokens.css:63"
+    },
+    {
+      "name": "--text-2xl",
+      "value": "86px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-2xl in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:64"
+      ],
+      "sourceName": "--text-2xl",
+      "source": "tokens.css:64"
+    },
+    {
+      "name": "--text-3xl",
+      "value": "104px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-3xl in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:65"
+      ],
+      "sourceName": "--text-3xl",
+      "source": "tokens.css:65"
+    },
+    {
+      "name": "--text-4xl",
+      "value": "132px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --text-4xl in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:66"
+      ],
+      "sourceName": "--text-4xl",
+      "source": "tokens.css:66"
+    },
+    {
+      "name": "--leading-body",
+      "value": "1.35",
+      "type": "number",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --leading-body in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:68"
+      ],
+      "sourceName": "--leading-body",
+      "source": "tokens.css:68"
+    },
+    {
+      "name": "--leading-tight",
+      "value": "1.05",
+      "type": "number",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --leading-tight in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:69"
+      ],
+      "sourceName": "--leading-tight",
+      "source": "tokens.css:69"
+    },
+    {
+      "name": "--tracking-display",
+      "value": "0em",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --tracking-display in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:70"
+      ],
+      "sourceName": "--tracking-display",
+      "source": "tokens.css:70"
+    },
+    {
+      "name": "--space-1",
+      "value": "8px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-1 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:74"
+      ],
+      "sourceName": "--space-1",
+      "source": "tokens.css:74"
+    },
+    {
+      "name": "--space-2",
+      "value": "16px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-2 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:75"
+      ],
+      "sourceName": "--space-2",
+      "source": "tokens.css:75"
+    },
+    {
+      "name": "--space-3",
+      "value": "24px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-3 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:76"
+      ],
+      "sourceName": "--space-3",
+      "source": "tokens.css:76"
+    },
+    {
+      "name": "--space-4",
+      "value": "32px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-4 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:77"
+      ],
+      "sourceName": "--space-4",
+      "source": "tokens.css:77"
+    },
+    {
+      "name": "--space-5",
+      "value": "40px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-5 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:78"
+      ],
+      "sourceName": "--space-5",
+      "source": "tokens.css:78"
+    },
+    {
+      "name": "--space-6",
+      "value": "48px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-6 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:79"
+      ],
+      "sourceName": "--space-6",
+      "source": "tokens.css:79"
+    },
+    {
+      "name": "--space-8",
+      "value": "64px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-8 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:80"
+      ],
+      "sourceName": "--space-8",
+      "source": "tokens.css:80"
+    },
+    {
+      "name": "--space-12",
+      "value": "96px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --space-12 in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:81"
+      ],
+      "sourceName": "--space-12",
+      "source": "tokens.css:81"
+    },
+    {
+      "name": "--section-y-desktop",
+      "value": "108px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --section-y-desktop in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:83"
+      ],
+      "sourceName": "--section-y-desktop",
+      "source": "tokens.css:83"
+    },
+    {
+      "name": "--section-y-tablet",
+      "value": "88px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --section-y-tablet in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:84"
+      ],
+      "sourceName": "--section-y-tablet",
+      "source": "tokens.css:84"
+    },
+    {
+      "name": "--section-y-phone",
+      "value": "72px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --section-y-phone in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:85"
+      ],
+      "sourceName": "--section-y-phone",
+      "source": "tokens.css:85"
+    },
+    {
+      "name": "--radius-sm",
+      "value": "8px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --radius-sm in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:89"
+      ],
+      "sourceName": "--radius-sm",
+      "source": "tokens.css:89"
+    },
+    {
+      "name": "--radius-md",
+      "value": "12px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --radius-md in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:90"
+      ],
+      "sourceName": "--radius-md",
+      "source": "tokens.css:90"
+    },
+    {
+      "name": "--radius-lg",
+      "value": "16px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --radius-lg in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:91"
+      ],
+      "sourceName": "--radius-lg",
+      "source": "tokens.css:91"
+    },
+    {
+      "name": "--radius-pill",
+      "value": "9999px",
+      "type": "dimension",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --radius-pill in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:92"
+      ],
+      "sourceName": "--radius-pill",
+      "source": "tokens.css:92"
+    },
+    {
+      "name": "--elev-flat",
+      "value": "none",
+      "type": "shadow",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --elev-flat in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:97"
+      ],
+      "sourceName": "--elev-flat",
+      "source": "tokens.css:97"
+    },
+    {
+      "name": "--elev-ring",
+      "value": "0 0 0 1px var(--border)",
+      "type": "shadow",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --elev-ring in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:98"
+      ],
+      "sourceName": "--elev-ring",
+      "source": "tokens.css:98"
+    },
+    {
+      "name": "--elev-raised",
+      "value": "rgba(0, 0, 0, 0.08) 0px 12px 48px",
+      "type": "shadow",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --elev-raised in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:99"
+      ],
+      "sourceName": "--elev-raised",
+      "source": "tokens.css:99"
+    },
+    {
+      "name": "--focus-ring",
+      "value": "0 0 0 3px rgba(56, 152, 236, 0.3)",
+      "type": "shadow",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --focus-ring in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:103"
+      ],
+      "sourceName": "--focus-ring",
+      "source": "tokens.css:103"
+    },
+    {
+      "name": "--motion-fast",
+      "value": "400ms",
+      "type": "duration",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --motion-fast in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:107"
+      ],
+      "sourceName": "--motion-fast",
+      "source": "tokens.css:107"
+    },
+    {
+      "name": "--motion-base",
+      "value": "800ms",
+      "type": "duration",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --motion-base in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:108"
+      ],
+      "sourceName": "--motion-base",
+      "source": "tokens.css:108"
+    },
+    {
+      "name": "--ease-standard",
+      "value": "cubic-bezier(0.2, 0, 0, 1)",
+      "type": "cubicBezier",
+      "layer": "A2",
+      "confidence": "high",
+      "reason": "Video fixture declares --ease-standard in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:109"
+      ],
+      "sourceName": "--ease-standard",
+      "source": "tokens.css:109"
+    },
+    {
+      "name": "--container-max",
+      "value": "936px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --container-max in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:113"
+      ],
+      "sourceName": "--container-max",
+      "source": "tokens.css:113"
+    },
+    {
+      "name": "--container-gutter-desktop",
+      "value": "108px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --container-gutter-desktop in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:114"
+      ],
+      "sourceName": "--container-gutter-desktop",
+      "source": "tokens.css:114"
+    },
+    {
+      "name": "--container-gutter-tablet",
+      "value": "88px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --container-gutter-tablet in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:115"
+      ],
+      "sourceName": "--container-gutter-tablet",
+      "source": "tokens.css:115"
+    },
+    {
+      "name": "--container-gutter-phone",
+      "value": "72px",
+      "type": "dimension",
+      "layer": "A1-structure",
+      "confidence": "high",
+      "reason": "Video fixture declares --container-gutter-phone in tokens.css for 3:4 Remotion scenes.",
+      "sources": [
+        "tokens.css:116"
+      ],
+      "sourceName": "--container-gutter-phone",
+      "source": "tokens.css:116"
+    }
+  ]
+}

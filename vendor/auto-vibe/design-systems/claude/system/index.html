@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Claude (Anthropic) - video system assets</title>
+  <style>
+  :root {
+    /* ─── Surface (3 levels) ─────────────────────────────────────────
+     * Parchment (bg) -> Ivory (surface) -> Warm Sand (surface-warm). */
+    --bg: #f5f4ed;
+    --surface: #faf9f5;
+    --surface-warm: #e8e6dc;   /* Warm Sand: subtitle backs, dividers, panels */
+
+    /* ─── Foreground ramp (4 levels) ────────────────────────────────
+     * Every gray carries a yellow-brown undertone. */
+    --fg: #141413;             /* Anthropic Near Black */
+    --fg-2: #3d3d3a;           /* Dark Warm: emphasized supporting text */
+    --muted: #5e5d59;          /* Olive Gray: secondary text */
+    --meta: #87867f;           /* Stone Gray: metadata and timestamps */
+
+    /* ─── Border (2 levels) ──────────────────────────────────────────
+     * Cream-tinted borders — the gentlest possible containment. */
+    --border: #f0eee6;         /* Border Cream — standard light-theme border */
+    --border-soft: #e8e6dc;    /* Border Warm — section dividers, emphasized containment */
+
+    /* ─── Accent ──────────────────────────────────────────────────────
+     * Terracotta Brand: the primary chromatic element on most screens.
+     * Used for highest-signal brand moments only. */
+    --accent: #c96442;
+    --accent-on: #faf9f5;      /* Ivory: foreground on terracotta */
+    --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+    --accent-active: color-mix(in oklab, var(--accent), black 14%);
+
+    /* ─── Semantic ────────────────────────────────────────────────────
+     * Sparse status tones for data callouts and timeline annotations. */
+    --success: #17a34a;
+    --warn: #eab308;
+    --danger: #b53333;         /* Error Crimson: warm red */
+
+    /* ─── Typography ──────────────────────────────────────────────────
+     * Anthropic Serif (Georgia fallback) for titles.
+     * Anthropic Sans for subtitles, labels, and body copy. */
+    --font-display: "Anthropic Serif", Georgia, "Times New Roman", serif;
+    --font-body: "Anthropic Sans", "Arial", system-ui, -apple-system, sans-serif;
+    --font-mono: "Anthropic Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+    /* Video type scale for 1080x1440 3:4 output. */
+    --text-xs: 24px;           /* Metadata, timestamps, quiet labels */
+    --text-sm: 30px;           /* Caption labels and small annotations */
+    --text-base: 40px;         /* Subtitle/body line */
+    --text-lg: 52px;           /* Large subtitle or supporting statement */
+    --text-xl: 68px;           /* Secondary title */
+    --text-2xl: 86px;          /* Scene title */
+    --text-3xl: 104px;         /* Chapter title */
+    --text-4xl: 132px;         /* Hero title */
+
+    --leading-body: 1.35;      /* Subtitle-safe, still editorial */
+    --leading-tight: 1.05;     /* Tight title cards */
+    --tracking-display: 0em;   /* Serif faces carry authority; no compression needed */
+
+    /* ─── Spacing ─────────────────────────────────────────────────────
+     * Larger rhythm for video frame composition. */
+    --space-1: 8px;
+    --space-2: 16px;
+    --space-3: 24px;
+    --space-4: 32px;
+    --space-5: 40px;
+    --space-6: 48px;
+    --space-8: 64px;
+    --space-12: 96px;
+
+    --section-y-desktop: 108px; /* Hero/title safe inset */
+    --section-y-tablet: 88px;   /* Standard overlay safe inset */
+    --section-y-phone: 72px;    /* Subtitle safe inset */
+
+    /* ─── Radius ──────────────────────────────────────────────────────
+     * Subtle softness for panels and subtitle backs. */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;     /* Chip-like elements (use sparingly) */
+
+    /* ─── Elevation ───────────────────────────────────────────────────
+     * Ring shadows (0px 0px 0px 1px) instead of drop shadows.
+     * Use ring shadows for static containment. */
+    --elev-flat: none;
+    --elev-ring: 0 0 0 1px var(--border);
+    --elev-raised: rgba(0, 0, 0, 0.08) 0px 12px 48px;
+
+    /* ─── Focus ring ──────────────────────────────────────────────────
+     * Compatibility token for browser previews. */
+    --focus-ring: 0 0 0 3px rgba(56, 152, 236, 0.3);
+
+    /* ─── Motion ──────────────────────────────────────────────────────
+     * Calm Remotion timings. */
+    --motion-fast: 400ms;
+    --motion-base: 800ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+    /* ─── Layout ──────────────────────────────────────────────────────
+     * 3:4 vertical frame defaults and safe margins. */
+    --container-max: 936px;
+    --container-gutter-desktop: 108px;
+    --container-gutter-tablet: 88px;
+    --container-gutter-phone: 72px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+  main { width: min(100% - var(--space-8), 960px); margin: 0 auto; padding: var(--space-12) 0; }
+  .eyebrow { margin: 0; color: var(--accent); font-size: var(--text-xs); letter-spacing: 0.04em; text-transform: uppercase; }
+  h1, h3, p { margin: 0; }
+  h1, h3 { font-family: var(--font-display); font-weight: 500; line-height: var(--leading-tight); }
+  h1 { margin-top: var(--space-3); font-size: var(--text-2xl); }
+  .lead { margin-top: var(--space-4); color: var(--muted); font-size: var(--text-base); line-height: var(--leading-body); }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-8); }
+  .card { display: block; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); padding: var(--space-5); color: inherit; text-decoration: none; box-shadow: var(--elev-ring); }
+  .card h3 { font-size: var(--text-lg); }
+  .card p { margin-top: var(--space-2); color: var(--meta); font-size: var(--text-xs); }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Claude 3:4 video</p>
+    <h1>Video system assets</h1>
+    <p class="lead">Preview modules for vertical Remotion scenes and video-oriented composition.</p>
+    <section class="grid" aria-label="Video asset examples">
+      <a class="card" href="kit.html"><h3>Video kit</h3><p>kit.html</p></a>
+      <a class="card" href="kit.dark.html"><h3>Dark video kit</h3><p>kit.dark.html</p></a>
+      <a class="card" href="artifacts/landing.html"><h3>Opening title</h3><p>artifacts/landing.html</p></a>
+      <a class="card" href="artifacts/deck.html"><h3>Explainer sequence</h3><p>artifacts/deck.html</p></a>
+      <a class="card" href="artifacts/poster.html"><h3>Poster frame</h3><p>artifacts/poster.html</p></a>
+      <a class="card" href="artifacts/email.html"><h3>Quote frame</h3><p>artifacts/email.html</p></a>
+      <a class="card" href="artifacts/newsletter.html"><h3>Narration frame</h3><p>artifacts/newsletter.html</p></a>
+      <a class="card" href="artifacts/form.html"><h3>Data callout</h3><p>artifacts/form.html</p></a>
+    </section>
+  </main>
+</body>
+</html>
