@@ -1,0 +1,7 @@
+- The Read tool is unavailable for images; use kimi-img-viewer to inspect image files.
+- The absolute path to the python3 executable is `/usr/local/bin/python3`.
+- Remotion renders frames in parallel and out of order; every frame must be independently computable.
+- Font loading in Remotion is easy to get wrong; before adding custom fonts or typography-related `delayRender()` logic, read `.claude/skills/remotion-font-loading/SKILL.md`.
+- Use Studio or stills for fast visual iteration. When a scene uses async render gates, media, fonts, or shaders, run `pnpm run remotion:render` on the final candidate as the cross-frame technical gate, with readable `delayRender()` labels for actionable timeouts.
+- curl uses local proxy env vars for remote URLs in this environment, which is useful for downloading overseas resources from China; keep the proxy, but when verifying any remote URL, use `curl -s -o /dev/null -w '%{http_code} size=%{size_download}\n' URL` instead of `curl -sI URL | head -1`, because HTTPS proxy CONNECT can print `HTTP/1.1 200 Connection established` before the real status, even when the URL is 404.
+- `gh` CLI is already authenticated (macOS keyring); use `gh api repos/{owner}/{repo}/contents/{path}` or `gh api -X GET search/code -f q='...'` to read/query GitHub source instead of web scraping.

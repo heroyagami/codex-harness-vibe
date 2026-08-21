@@ -53,11 +53,13 @@ def doctor(project: Path) -> dict:
     available = {name: bool(path and Path(path).exists()) for name, path in commands.items()}
     upstream = project / ".private" / "sxhzju-auto-motion" / "auto-vibe-"
     vendor = project / "vendor" / "auto-vibe"
-    vendor_report = (
-        compare_vendor(upstream, vendor)
-        if upstream.exists() and vendor.exists()
-        else {"status": "rejected", "problem": "Run setup.ps1 to install the authorized upstream base"}
-    )
+    if upstream.exists() and vendor.exists():
+        vendor_report = compare_vendor(upstream, vendor)
+        vendor_report["mode"] = "verified_against_local_upstream"
+    elif vendor.exists():
+        vendor_report = {"status": "pass", "mode": "bundled_private_base"}
+    else:
+        vendor_report = {"status": "rejected", "problem": "Missing vendor/auto-vibe production base"}
     return {
         "status": "pass" if all(available.values()) and vendor_report["status"] == "pass" else "rejected",
         "commands": available,

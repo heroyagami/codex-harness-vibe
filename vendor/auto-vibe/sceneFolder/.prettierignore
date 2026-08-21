@@ -1,0 +1,12 @@
+node_modules
+out
+dist
+build
+.cache
+.remotion
+coverage
+
+pnpm-lock.yaml
+.claude/skills
+scripts/remotion-browser-executable.mjs
+scripts/remotion-cli.mjs

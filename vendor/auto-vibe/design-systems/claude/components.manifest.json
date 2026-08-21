@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "brandId": "claude",
+  "source": {
+    "componentsHtml": "components.html",
+    "tokensCss": "tokens.css"
+  },
+  "fixture": {
+    "title": "Claude (Anthropic) - 3:4 video components",
+    "description": "Reference fixture for vertical Remotion scenes. Warm parchment, terracotta signal, serif titles, readable subtitles, and sparse overlays.",
+    "styleBlockCount": 1,
+    "selectorCount": 31,
+    "classCount": 17,
+    "elementCount": 17
+  },
+  "tokens": {
+    "declared": [
+      "--bg",
+      "--surface",
+      "--surface-warm",
+      "--fg",
+      "--fg-2",
+      "--muted",
+      "--meta",
+      "--border",
+      "--border-soft",
+      "--accent",
+      "--accent-on",
+      "--accent-hover",
+      "--accent-active",
+      "--success",
+      "--warn",
+      "--danger",
+      "--font-display",
+      "--font-body",
+      "--font-mono",
+      "--text-xs",
+      "--text-sm",
+      "--text-base",
+      "--text-lg",
+      "--text-xl",
+      "--text-2xl",
+      "--text-3xl",
+      "--text-4xl",
+      "--leading-body",
+      "--leading-tight",
+      "--tracking-display",
+      "--space-1",
+      "--space-2",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-8",
+      "--space-12",
+      "--section-y-desktop",
+      "--section-y-tablet",
+      "--section-y-phone",
+      "--radius-sm",
+      "--radius-md",
+      "--radius-lg",
+      "--radius-pill",
+      "--elev-flat",
+      "--elev-ring",
+      "--elev-raised",
+      "--focus-ring",
+      "--motion-fast",
+      "--motion-base",
+      "--ease-standard",
+      "--container-max",
+      "--container-gutter-desktop",
+      "--container-gutter-tablet",
+      "--container-gutter-phone"
+    ],
+    "referenced": [
+      "--bg",
+      "--surface",
+      "--surface-warm",
+      "--fg",
+      "--fg-2",
+      "--muted",
+      "--meta",
+      "--border",
+      "--border-soft",
+      "--accent",
+      "--accent-on",
+      "--accent-hover",
+      "--accent-active",
+      "--success",
+      "--warn",
+      "--danger",
+      "--font-display",
+      "--font-body",
+      "--font-mono",
+      "--text-xs",
+      "--text-sm",
+      "--text-base",
+      "--text-lg",
+      "--text-xl",
+      "--text-2xl",
+      "--text-3xl",
+      "--text-4xl",
+      "--leading-body",
+      "--leading-tight",
+      "--tracking-display",
+      "--space-1",
+      "--space-2",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-8",
+      "--space-12",
+      "--section-y-desktop",
+      "--section-y-tablet",
+      "--section-y-phone",
+      "--radius-sm",
+      "--radius-md",
+      "--radius-lg",
+      "--radius-pill",
+      "--elev-flat",
+      "--elev-ring",
+      "--elev-raised",
+      "--focus-ring",
+      "--motion-fast",
+      "--motion-base",
+      "--ease-standard",
+      "--container-max",
+      "--container-gutter-desktop",
+      "--container-gutter-tablet",
+      "--container-gutter-phone"
+    ],
+    "unusedDeclared": [],
+    "undeclaredReferenced": []
+  },
+  "selectors": [
+    ".wrap",
+    ".frame",
+    ".frame-dark",
+    ".topline",
+    ".signal",
+    ".title-stack",
+    "h1",
+    "h2",
+    "p",
+    ".support",
+    ".subtitle",
+    ".quote-card",
+    ".data-card",
+    ".code-card",
+    ".quote-card blockquote",
+    ".meta",
+    ".data-card strong",
+    ".data-card span",
+    ".component-grid"
+  ],
+  "classes": [
+    "wrap",
+    "frame",
+    "frame-dark",
+    "topline",
+    "signal",
+    "title-stack",
+    "support",
+    "subtitle",
+    "quote-card",
+    "data-card",
+    "code-card",
+    "meta",
+    "component-grid"
+  ],
+  "elements": [
+    "html",
+    "head",
+    "meta",
+    "title",
+    "style",
+    "body",
+    "main",
+    "section",
+    "div",
+    "span",
+    "h1",
+    "h2",
+    "p",
+    "blockquote",
+    "strong"
+  ],
+  "groups": [
+    {
+      "id": "title-card",
+      "label": "Title cards",
+      "present": true,
+      "selectors": [
+        ".frame",
+        ".title-stack",
+        "h1",
+        ".signal"
+      ],
+      "classes": [
+        "frame",
+        "title-stack",
+        "signal"
+      ],
+      "tokens": [
+        "--font-display",
+        "--text-4xl",
+        "--accent",
+        "--bg"
+      ]
+    },
+    {
+      "id": "subtitle",
+      "label": "Subtitle blocks",
+      "present": true,
+      "selectors": [
+        ".subtitle"
+      ],
+      "classes": [
+        "subtitle"
+      ],
+      "tokens": [
+        "--font-body",
+        "--text-base",
+        "--leading-body",
+        "--surface",
+        "--border"
+      ]
+    },
+    {
+      "id": "quote-card",
+      "label": "Quote cards",
+      "present": true,
+      "selectors": [
+        ".quote-card",
+        ".quote-card blockquote",
+        ".meta"
+      ],
+      "classes": [
+        "quote-card",
+        "meta"
+      ],
+      "tokens": [
+        "--font-display",
+        "--text-xl",
+        "--font-body",
+        "--meta"
+      ]
+    },
+    {
+      "id": "data-callout",
+      "label": "Data callouts",
+      "present": true,
+      "selectors": [
+        ".data-card",
+        ".data-card strong",
+        ".data-card span"
+      ],
+      "classes": [
+        "data-card"
+      ],
+      "tokens": [
+        "--accent",
+        "--text-3xl",
+        "--muted"
+      ]
+    },
+    {
+      "id": "code-output",
+      "label": "Code and model output",
+      "present": true,
+      "selectors": [
+        ".code-card"
+      ],
+      "classes": [
+        "code-card"
+      ],
+      "tokens": [
+        "--font-mono",
+        "--text-sm",
+        "--surface"
+      ]
+    }
+  ]
+}

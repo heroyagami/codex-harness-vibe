@@ -1,0 +1,117 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * design-systems/claude/tokens.css
+ *
+ * Structured token bindings for "Claude (Anthropic) Video Design System".
+ * Literary motion aesthetic: warm parchment canvas, terracotta accent,
+ * exclusive warm-toned neutrals, serif titles, readable video text.
+ *
+ * Key brand decisions encoded here:
+ *   - Parchment (#f5f4ed) as the main frame canvas
+ *   - Ivory (#faf9f5) for subtitle backs, quote cards, and overlays
+ *   - Terracotta (#c96442) as one precise signal per frame
+ *   - All grays carry a yellow-brown undertone
+ *   - Serif for titles, sans for subtitles and labels
+ *   - Ring-based containment over heavy shadows
+ *   - Video-safe type scale for 3:4 vertical scenes
+ * ─────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ─── Surface (3 levels) ─────────────────────────────────────────
+   * Parchment (bg) -> Ivory (surface) -> Warm Sand (surface-warm). */
+  --bg: #f5f4ed;
+  --surface: #faf9f5;
+  --surface-warm: #e8e6dc;   /* Warm Sand: subtitle backs, dividers, panels */
+
+  /* ─── Foreground ramp (4 levels) ────────────────────────────────
+   * Every gray carries a yellow-brown undertone. */
+  --fg: #141413;             /* Anthropic Near Black */
+  --fg-2: #3d3d3a;           /* Dark Warm: emphasized supporting text */
+  --muted: #5e5d59;          /* Olive Gray: secondary text */
+  --meta: #87867f;           /* Stone Gray: metadata and timestamps */
+
+  /* ─── Border (2 levels) ──────────────────────────────────────────
+   * Cream-tinted borders — the gentlest possible containment. */
+  --border: #f0eee6;         /* Border Cream — standard light-theme border */
+  --border-soft: #e8e6dc;    /* Border Warm — section dividers, emphasized containment */
+
+  /* ─── Accent ──────────────────────────────────────────────────────
+   * Terracotta Brand: the primary chromatic element on most screens.
+   * Used for highest-signal brand moments only. */
+  --accent: #c96442;
+  --accent-on: #faf9f5;      /* Ivory: foreground on terracotta */
+  --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+  --accent-active: color-mix(in oklab, var(--accent), black 14%);
+
+  /* ─── Semantic ────────────────────────────────────────────────────
+   * Sparse status tones for data callouts and timeline annotations. */
+  --success: #17a34a;
+  --warn: #eab308;
+  --danger: #b53333;         /* Error Crimson: warm red */
+
+  /* ─── Typography ──────────────────────────────────────────────────
+   * Anthropic Serif (Georgia fallback) for titles.
+   * Anthropic Sans for subtitles, labels, and body copy. */
+  --font-display: "Anthropic Serif", Georgia, "Times New Roman", serif;
+  --font-body: "Anthropic Sans", "Arial", system-ui, -apple-system, sans-serif;
+  --font-mono: "Anthropic Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  /* Video type scale for 1080x1440 3:4 output. */
+  --text-xs: 24px;           /* Metadata, timestamps, quiet labels */
+  --text-sm: 30px;           /* Caption labels and small annotations */
+  --text-base: 40px;         /* Subtitle/body line */
+  --text-lg: 52px;           /* Large subtitle or supporting statement */
+  --text-xl: 68px;           /* Secondary title */
+  --text-2xl: 86px;          /* Scene title */
+  --text-3xl: 104px;         /* Chapter title */
+  --text-4xl: 132px;         /* Hero title */
+
+  --leading-body: 1.35;      /* Subtitle-safe, still editorial */
+  --leading-tight: 1.05;     /* Tight title cards */
+  --tracking-display: 0em;   /* Serif faces carry authority; no compression needed */
+
+  /* ─── Spacing ─────────────────────────────────────────────────────
+   * Larger rhythm for video frame composition. */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-8: 64px;
+  --space-12: 96px;
+
+  --section-y-desktop: 108px; /* Hero/title safe inset */
+  --section-y-tablet: 88px;   /* Standard overlay safe inset */
+  --section-y-phone: 72px;    /* Subtitle safe inset */
+
+  /* ─── Radius ──────────────────────────────────────────────────────
+   * Subtle softness for panels and subtitle backs. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;     /* Chip-like elements (use sparingly) */
+
+  /* ─── Elevation ───────────────────────────────────────────────────
+   * Ring shadows (0px 0px 0px 1px) instead of drop shadows.
+   * Use ring shadows for static containment. */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px var(--border);
+  --elev-raised: rgba(0, 0, 0, 0.08) 0px 12px 48px;
+
+  /* ─── Focus ring ──────────────────────────────────────────────────
+   * Compatibility token for browser previews. */
+  --focus-ring: 0 0 0 3px rgba(56, 152, 236, 0.3);
+
+  /* ─── Motion ──────────────────────────────────────────────────────
+   * Calm editorial timings. 400ms is roughly 12 frames at 30fps. */
+  --motion-fast: 400ms;
+  --motion-base: 800ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ─── Layout ──────────────────────────────────────────────────────
+   * 3:4 vertical frame defaults and safe margins. */
+  --container-max: 936px;
+  --container-gutter-desktop: 108px;
+  --container-gutter-tablet: 88px;
+  --container-gutter-phone: 72px;
+}

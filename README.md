@@ -10,17 +10,16 @@
 git clone https://github.com/heroyagami/codex-harness-vibe.git
 cd codex-harness-vibe
 
-.\setup.ps1
 .\legal-motion.ps1 doctor
 ```
 
-如果购买源码需要指定版本：
+仓库已经自带完整生产底座，不需要再次下载。只有主动同步购买源码的新版本时，先备份并移除本地 `vendor` 与 `.private`，再运行：
 
 ```powershell
 .\setup.ps1 -Ref "提交号或分支名"
 ```
 
-安装要求：Git、Python 3.11+、Node.js、pnpm、ffmpeg、Claude Code、Codex CLI。Python 环境需安装 Pillow；Remotion 依赖会在第一次生产时自动安装。
+安装要求：Git、Python 3.11+、Node.js、pnpm、ffmpeg、Claude Code、Codex CLI。Python 环境需安装 Pillow；Remotion 的 `node_modules` 会在第一次生产时自动安装，不进入 GitHub。
 
 ## 制作视频
 
@@ -54,4 +53,3 @@ cd codex-harness-vibe
 - 序列审查拒绝连续三个高度相似的主体布局。
 
 更多说明见 [ARCHITECTURE.md](ARCHITECTURE.md) 和 [COMPLETION-CHECKLIST.md](COMPLETION-CHECKLIST.md)。
-
