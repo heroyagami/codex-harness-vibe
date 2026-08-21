@@ -1,0 +1,41 @@
+[models.director]
+provider = "codex_text"
+model = ""
+fallback_model = ""
+estimated_cost_usd = 0.0
+
+[models.scene_worker]
+provider = "claude"
+model = ""
+fallback_model = ""
+estimated_cost_usd = 0.0
+
+[models.revision_worker]
+provider = "claude"
+model = ""
+fallback_model = ""
+estimated_cost_usd = 0.0
+
+[models.transition_worker]
+provider = "claude"
+model = ""
+fallback_model = ""
+estimated_cost_usd = 0.0
+
+[models.critic]
+provider = "codex_images"
+model = ""
+fallback_model = ""
+estimated_cost_usd = 0.0
+
+[budget]
+max_total_cost_usd = 0.0
+max_model_calls = 0
+max_scene_attempts = 3
+max_revision_attempts = 1
+
+[production]
+scene_concurrency = 3
+transition_concurrency = 2
+timeout_seconds = 900
+require_visual_critic = true
