@@ -46,6 +46,23 @@ class OfflineFlowTests(unittest.TestCase):
             self.assertTrue(sync_run_inputs(run, srt, audio))
             self.assertFalse((run / "scene-plan.json").exists())
 
+    def test_scene_plan_bridges_natural_subtitle_gaps(self):
+        with tempfile.TemporaryDirectory() as folder:
+            run = Path(folder)
+            (run / "transcription.srt").write_text(
+                "1\n00:00:00,000 --> 00:00:01,000\n甲\n\n"
+                "2\n00:00:02,000 --> 00:00:03,000\n乙\n",
+                encoding="utf-8",
+            )
+            director = run / "director.json"
+            director.write_text(json.dumps({"scenes": [
+                {"start": 0.0, "end": 1.0, "meaning": "甲"},
+                {"start": 2.0, "end": 3.0, "meaning": "乙"},
+            ]}, ensure_ascii=False), encoding="utf-8")
+            plan, _ = build_from_director(run, director)
+            self.assertEqual(plan["scenes"][0]["time_range_seconds"], ["0.000", "2.000"])
+            self.assertEqual(plan["scenes"][1]["time_range_seconds"], ["2.000", "3.000"])
+
 
 if __name__ == "__main__":
     unittest.main()

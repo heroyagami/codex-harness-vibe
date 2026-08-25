@@ -1,4 +1,5 @@
 import os
+import subprocess
 from pathlib import Path
 
 
@@ -19,6 +20,17 @@ def link_shared_node_modules(project_dir, shared_node_modules):
         raise SharedDependenciesError(
             f"node_modules already exists: {local_node_modules}"
         )
+
+    if os.name == "nt":
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(local_node_modules), str(shared_node_modules)],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            raise SharedDependenciesError(
+                "Could not create Windows node_modules junction"
+            )
+        return
 
     local_node_modules.mkdir()
     (local_node_modules / ".cache").mkdir()

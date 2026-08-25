@@ -45,6 +45,9 @@ const getExecutableName = (platformTag) =>
   platformTag === "win64" ? "chrome-headless-shell.exe" : "chrome-headless-shell";
 
 const isExecutableFile = (filePath) => {
+  if (process.platform === "win32" && existsSync(filePath)) {
+    return true;
+  }
   try {
     accessSync(filePath, constants.X_OK);
     return true;
@@ -332,6 +335,16 @@ export const ensureSharedBrowserExecutable = async ({ logPrefix = DEFAULT_LOG_PR
     log(`Found cached Chrome Headless Shell for Remotion ${remotionVersion}.`);
     log(`browserExecutable=${destinationBinaryPath}`);
     return destinationBinaryPath;
+  }
+
+  const localBrowserDirectory = resolveLocalDownloadedBrowserDirectory(platformTag);
+  const localBinaryPath = resolve(
+    localBrowserDirectory,
+    getExecutableName(platformTag)
+  );
+  if (process.platform === "win32" && isExecutableFile(localBinaryPath)) {
+    log(`Using existing local Chrome Headless Shell: ${localBinaryPath}`);
+    return localBinaryPath;
   }
 
   await acquireInstallLock({ log });

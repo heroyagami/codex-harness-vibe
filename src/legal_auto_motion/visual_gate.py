@@ -28,7 +28,7 @@ def inspect_render(scene_dir: Path) -> dict:
     duration = metadata["duration_in_frames"] / metadata["fps"]
     artifacts = scene_dir / "artifacts" / "visual-gate"
     artifacts.mkdir(parents=True, exist_ok=True)
-    background = _background_crop(scene_dir, metadata).crop((80, 100, 1000, 1000))
+    background = _background_crop(scene_dir, metadata).crop((110, 145, 970, 1000))
     samples = []
     unsafe_edge_samples = []
     for label, ratio in (("early", 0.25), ("mid", 0.50), ("late", 0.75)):
@@ -43,7 +43,7 @@ def inspect_render(scene_dir: Path) -> dict:
         full_image.resize((540, 720), Image.Resampling.LANCZOS).save(
             artifacts / f"{label}-review.jpg", quality=88, optimize=True
         )
-        image = full_image.crop((80, 100, 1000, 1000))
+        image = full_image.crop((110, 145, 970, 1000))
         difference = ImageChops.difference(image, background)
         mean_difference = sum(ImageStat.Stat(difference).mean) / 3
         changed_ratio = sum(1 for value in difference.convert("L").get_flattened_data() if value > 12) / (920 * 900)

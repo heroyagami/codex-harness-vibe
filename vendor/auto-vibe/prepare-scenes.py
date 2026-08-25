@@ -292,6 +292,18 @@ for i, plan_item in enumerate(scene_plan, start=1):
     if scene_dir.exists():
         sys.exit(f"Scene directory exists: {scene_dir}")
     shutil.copytree(template_dir, scene_dir, ignore=ignore_template_files)
+    scenes_source_dir = scene_dir / "scenes"
+    scenes_source_dir.mkdir(parents=True, exist_ok=True)
+    default_scene = scenes_source_dir / "DefaultScene.tsx"
+    if not default_scene.exists():
+        default_scene.write_text(
+            'import React from "react";\n'
+            'import {AbsoluteFill} from "remotion";\n\n'
+            'export const DefaultScene: React.FC = () => (\n'
+            '  <AbsoluteFill style={{backgroundColor: "transparent"}} />\n'
+            ');\n',
+            encoding="utf-8",
+        )
     substitute_scene_prompt(
         scene_dir,
         scene_id,

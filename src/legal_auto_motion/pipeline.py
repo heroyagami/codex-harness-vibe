@@ -111,8 +111,17 @@ def build_from_director(run_dir: Path, director_plan: Path) -> tuple[dict, dict]
     contracts: dict[str, dict] = {}
     for index, source in enumerate(source_scenes, start=1):
         scene_id = f"scene-{index:03d}"
-        start, end = float(source["start"]), float(source["end"])
-        assigned = [cue for cue in cues if cue.start >= start - 0.002 and cue.end <= end + 0.002]
+        spoken_start, spoken_end = float(source["start"]), float(source["end"])
+        # Subtitle cues may contain natural pauses, while auto-motion requires
+        # a gapless visual ledger. Keep the current scene on screen through
+        # the pause and hand off exactly when the next semantic scene starts.
+        start = spoken_start
+        end = (
+            float(source_scenes[index]["start"])
+            if index < len(source_scenes)
+            else spoken_end
+        )
+        assigned = [cue for cue in cues if cue.start >= spoken_start - 0.002 and cue.end <= spoken_end + 0.002]
         if not assigned:
             raise ValueError(f"{scene_id} contains no SRT cues")
         narration = " ".join(cue.text for cue in assigned)
@@ -214,7 +223,7 @@ def _fact_prompt(contract: dict) -> str:
         f"- 本镜头必须让观众直接理解：{contract.get('visual_goal') or contract.get('meaning')}\n"
         "- 先表现旁白中的人物、物体、动作或关系，再添加装饰性排版。\n"
         "- 不得用一排无标签圆点、孤立细线、纯数字或抽象徽章替代核心事件。\n"
-        "- 金额、日期等大字不能冲出画布；主要内容保持在 x=80..1000、y=100..1000。\n"
+        "- 短视频平台UI安全线：人物脸、数字、结论、Logo和其他关键内容必须保持在 x=110..970、y=145..1000；只有背景纹理和非必要装饰可越线。\n"
         "- 每个元素的运动必须对应叙事变化；若删掉旁白仍看不出镜头含义，应重新设计。\n"
     )
 
@@ -224,10 +233,20 @@ def prepare(run_dir: Path) -> None:
     contracts = json.loads((run_dir / "fact-contracts.json").read_text(encoding="utf-8"))
     run_command([sys.executable, "scene_plan.py", str(plan)], run_dir)
     _ensure_dependencies(run_dir)
-    run_command(
-        [sys.executable, "prepare-scenes.py", "sceneFolder", "scenes", "design-systems", str(plan)],
-        run_dir,
+    expected_scene_dirs = [
+        run_dir / "scenes" / f"scene-{index:03d}"
+        for index in range(1, len(contracts) + 1)
+    ]
+    scenes_are_prepared = all(
+        (scene_dir / "scene-metadata.json").exists()
+        and (scene_dir / "claude-scene-prompt.md").exists()
+        for scene_dir in expected_scene_dirs
     )
+    if not scenes_are_prepared:
+        run_command(
+            [sys.executable, "prepare-scenes.py", "sceneFolder", "scenes", "design-systems", str(plan)],
+            run_dir,
+        )
     shared = (run_dir / "sceneFolder" / "node_modules").resolve()
     background = run_dir / "resources" / "backgrounds" / "darkbg.png"
     for scene_dir in sorted((run_dir / "scenes").glob("scene-*")):
@@ -236,7 +255,10 @@ def prepare(run_dir: Path) -> None:
         contract = contracts[scene_dir.name]
         write_json(scene_dir / "fact-contract.json", contract)
         prompt = scene_dir / "claude-scene-prompt.md"
-        prompt.write_text(prompt.read_text(encoding="utf-8") + _fact_prompt(contract), encoding="utf-8")
+        fact_prompt = _fact_prompt(contract)
+        prompt_text = prompt.read_text(encoding="utf-8")
+        if fact_prompt not in prompt_text:
+            prompt.write_text(prompt_text + fact_prompt, encoding="utf-8")
     run_command(
         [
             sys.executable,
@@ -280,9 +302,12 @@ def worker_prompt(revision: bool = False) -> str:
             "只修复被列出的屏幕事实或局部帧问题，保留镜头构图，然后重新运行技术检查；不要渲染。"
         )
     return (
-        "执行 claude-scene-prompt.md：先完成 frame.md，再写 Remotion 场景。"
+        "读取 claude-scene-prompt.md 的 frontmatter、字幕、research_brief、边界契约和末尾事实契约，"
+        "但不要执行其中的素材生成、联网搜索、阶段汇报、渲染、抽帧或视觉复核流程；这些由外层 Harness 负责。"
+        "你唯一的交付是先完成 frame.md，再写 scenes/DefaultScene.tsx，并运行一次 pnpm run verify。"
+        "优先使用纯 Remotion MG、CSS 几何、SVG 和现有本地素材；不得调用 Agent、图片生成或视觉模型。"
         "让人物、物体、动作或关系直接解释旁白；围绕一个视觉主体安排开始、中点、高潮和结束。"
-        "屏幕事实遵守 fact-contract.json，主体保持在安全区。完成技术检查后停下，不渲染。"
+        "屏幕事实遵守 fact-contract.json；人物脸、数字、结论、Logo和其他关键内容必须保持在平台UI安全区 x=110..970、y=145..1000，只有背景装饰可越线。verify 无论成功或失败都停止并简短返回结果，不渲染。"
     )
 
 
@@ -357,6 +382,12 @@ def _run_claude(
     # On Windows, claude.cmd drops the final prompt when --tools receives an
     # empty argument. Director calls remain read-only by contract and their
     # output is captured by the harness, so omitting the flag is safer.
+    claude_env = os.environ.copy()
+    if route.model:
+        # Claude Code may spawn built-in Explore/Plan agents while authoring a
+        # scene. Keep those agents on the explicitly requested production
+        # model instead of inheriting a stale global cheap-model override.
+        claude_env["CLAUDE_CODE_SUBAGENT_MODEL"] = route.model
     result = subprocess.run(
         command,
         cwd=scene_dir,
@@ -367,6 +398,7 @@ def _run_claude(
         encoding="utf-8",
         errors="replace",
         capture_output=True,
+        env=claude_env,
     )
     output = "\n".join(value for value in (result.stdout, result.stderr) if value)
     if output:
@@ -474,6 +506,7 @@ def _creative_critique(scene_dir: Path, timeout: int, *, config: HarnessConfig |
         "结合当前目录 fact-contract.json 与 frame.md，只依据你直接看到的画面，按0到2分评价："
         "semantic_clarity、visual_thesis、information_density、composition、motion_purpose、rhythm、continuity、caption_safety。"
         "每张图必须写一条具体视觉观察；纯文字堆叠、主体难辨、构图空、画面重复、边缘裁切或字幕保留区有主体应扣分。"
+        "同时检查短视频平台UI安全线：人物脸、数字、结论、Logo等关键内容须在x=110..970、y=145..1000，字幕须在x=110..970且不得低于y=1295；越线时caption_safety不得给2分。"
         "problems 与 revision 必须具体可执行。只返回符合 schema 的 JSON。"
     )
     config = config or config_for_run(scene_dir.parents[1])
@@ -538,7 +571,7 @@ def _render_with_visual_revisions(
                 scene_dir,
                 "读取 artifacts/visual-revision-request.json 并修复全部可见性问题。"
                 "允许调整构图和scenes/DefaultScene.tsx，但不得改事实、时长或字幕。"
-                "主要内容必须保持在x=80..1000、y=100..1000，尤其不得以全宽前景背景触碰左右边缘。"
+                "关键主体、人物脸、数字、结论和Logo必须保持在短视频平台UI安全区x=110..970、y=145..1000；字幕不得低于y=1295。尤其不得以全宽前景背景触碰左右平台UI区。"
                 "DefaultScene根AbsoluteFill必须透明，不得设置全画布background或backgroundColor；统一背景由Root提供。"
                 "修复后运行pnpm run verify，不要自行渲染。",
                 timeout, config=config, role="revision_worker", state_graph=state_graph,
@@ -566,6 +599,17 @@ def run_scene(
     scene_graph = StateGraph(scene_dir / "scene-state.json")
     contract_path = scene_dir / "fact-contract.json"
     metadata_path = scene_dir / "scene-metadata.json"
+    scene_source = scene_dir / "scenes" / "DefaultScene.tsx"
+    if not scene_source.exists():
+        scene_source.parent.mkdir(parents=True, exist_ok=True)
+        scene_source.write_text(
+            'import React from "react";\n'
+            'import {AbsoluteFill} from "remotion";\n\n'
+            'export const DefaultScene: React.FC = () => (\n'
+            '  <AbsoluteFill style={{backgroundColor: "transparent"}} />\n'
+            ');\n',
+            encoding="utf-8",
+        )
     authored_fingerprint, _ = scene_fingerprints(scene_dir, config)
     prior_video = scene_dir / f"{scene_dir.name}.mov"
     authored_current = scene_graph.is_current("authored", authored_fingerprint)
@@ -792,7 +836,7 @@ def assemble(run_dir: Path, output: Path | None = None) -> dict:
     subtitle_filter = (
         "subtitles=transcription.srt:original_size=1080x1440:force_style='FontName=Microsoft YaHei,"
         "FontSize=12,PrimaryColour=&H00FFFFFF,OutlineColour=&H90000000,"
-        "BorderStyle=1,Outline=1,Shadow=0,Alignment=2,MarginL=24,MarginR=24,MarginV=30'"
+        "BorderStyle=1,Outline=1,Shadow=0,Alignment=2,MarginL=110,MarginR=110,MarginV=160'"
     )
     subprocess.run(
         [

@@ -16,6 +16,14 @@ def claude_command(executable: str, route: ModelRoute, *, structured: bool = Fal
     command = [
         executable, "-p", "--safe-mode", "--no-session-persistence",
         "--dangerously-skip-permissions", "--output-format", "json" if structured else "text",
+        "--disallowedTools", "Agent",
+        "--append-system-prompt",
+        (
+            "Complete this task directly in the current session. Do not spawn "
+            "Explore, Plan, or any other subagent. Never repeat an identical "
+            "tool call with identical arguments; inspect the result and change "
+            "approach if a command does not make progress."
+        ),
     ]
     if route.model:
         command.extend(["--model", route.model])

@@ -145,14 +145,33 @@ for transition in rendered_transitions:
         transition_dir.relative_to(transitions_dir)
     except ValueError:
         sys.exit(f"Refusing to write outside transitions directory: {transition_dir}")
+    spec_path = transition_dir / "transition-spec.json"
+    if transition_dir.exists() and spec_path.exists():
+        # A previous run may have been interrupted while wiring the shared
+        # dependencies. Preserve the generated prompt/spec and finish only
+        # the missing dependency link instead of aborting the whole run.
+        local_node_modules = transition_dir / "node_modules"
+        if local_node_modules.exists() and not local_node_modules.is_symlink():
+            marker = local_node_modules / ".shared-dependencies"
+            has_packages = any(
+                item.name not in {".cache", ".DS_Store"}
+                for item in local_node_modules.iterdir()
+            )
+            if not marker.exists() and not has_packages:
+                shutil.rmtree(local_node_modules)
+        if not local_node_modules.exists() and not local_node_modules.is_symlink():
+            try:
+                link_shared_node_modules(transition_dir, shared_node_modules)
+            except SharedDependenciesError as exc:
+                sys.exit(str(exc))
+        prepared.append(transition_id)
+        continue
     if transition_dir.exists():
-        sys.exit(f"Transition directory exists: {transition_dir}")
+        sys.exit(
+            f"Incomplete transition directory without transition-spec.json: {transition_dir}"
+        )
 
-    shutil.copytree(
-        scene_template_dir,
-        transition_dir,
-        ignore=ignore_template_files,
-    )
+    shutil.copytree(scene_template_dir, transition_dir, ignore=ignore_template_files)
     shutil.copytree(
         transition_template_dir,
         transition_dir,
@@ -191,7 +210,7 @@ for transition in rendered_transitions:
         "from_background_anchor": transition["from_background_anchor"],
         "to_background_anchor": transition["to_background_anchor"],
     }
-    (transition_dir / "transition-spec.json").write_text(
+    spec_path.write_text(
         json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     try:

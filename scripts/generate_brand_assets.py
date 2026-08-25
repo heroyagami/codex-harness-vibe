@@ -8,7 +8,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
 
 
-WIDTH, HEIGHT = 1080, 1440
+# The Remotion scene is 1080x1440, while auto-motion's parallax transitions
+# need 200px of overscan on every edge for camera movement.
+WIDTH, HEIGHT = 1480, 1840
 
 
 def make_background(path: Path, *, light: bool) -> None:
@@ -54,4 +56,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

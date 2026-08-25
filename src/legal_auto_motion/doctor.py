@@ -6,6 +6,10 @@ from pathlib import Path
 
 
 KNOWN_VENDOR_OVERRIDES = {
+    "prepare-scenes.py",
+    "prepare-transitions.py",
+    "sceneFolder/claude-scene-prompt.md",
+    "sceneFolder/frame.md",
     "sceneFolder/scripts/remotion-browser-executable.mjs",
     "shared_dependencies.py",
     "resources/backgrounds/darkbg.png",
