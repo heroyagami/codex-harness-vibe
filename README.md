@@ -40,6 +40,12 @@ final.mp4 + 完成报告
 
 它不适合以实拍剪辑、复杂人物表演、口型同步或大量生成式视频素材为主的项目。
 
+## 许可证与上游说明
+
+本项目原创的 Harness 总控、测试和文档采用 [MIT License](LICENSE)。`vendor/auto-vibe` 是经授权修改的 auto-motion / auto-vibe 第三方生产底座，不因本仓库采用 MIT 而被重新授权；其著作权与使用条件仍归原权利人及原授权约定管辖。详情见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+案例音频、字幕、图片、字体、商标、API Key、模型账户和生成成片不因放入运行目录而自动获得 MIT 授权。公开分发前请自行确认对应素材和第三方服务条款。
+
 ## 当前成熟度
 
 Harness 的可复用框架已经完成，以下能力已有实现：
