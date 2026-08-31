@@ -4,6 +4,8 @@ import hashlib
 import shutil
 from pathlib import Path
 
+from .config import HarnessConfig, load_config
+
 
 KNOWN_VENDOR_OVERRIDES = {
     "prepare-scenes.py",
@@ -44,16 +46,30 @@ def compare_vendor(upstream: Path, vendor: Path) -> dict:
     }
 
 
+def required_agent_commands(config: HarnessConfig) -> dict[str, str]:
+    required: dict[str, str] = {}
+    for role, route in config.models.items():
+        if route.provider == "claude":
+            required[f"{role}:claude"] = "claude"
+        elif route.provider in {"codex_text", "codex_worker", "codex_images"}:
+            required[f"{role}:codex"] = "codex"
+        elif route.provider == "generic_cli":
+            required[f"{role}:generic_cli"] = route.command[0]
+    return required
+
+
 def doctor(project: Path) -> dict:
+    config_path = project / "harness.toml"
+    config = load_config(config_path if config_path.exists() else None)
     commands = {
         "python": shutil.which("python") or shutil.which("python.exe"),
         "node": shutil.which("node") or shutil.which("node.exe"),
         "pnpm": shutil.which("pnpm") or shutil.which("pnpm.cmd"),
-        "claude": shutil.which("claude") or shutil.which("claude.cmd") or shutil.which("claude.exe"),
-        "codex": shutil.which("codex") or shutil.which("codex.cmd"),
         "ffmpeg": shutil.which("ffmpeg") or shutil.which("ffmpeg.exe") or str(Path.home() / "bin" / "ffmpeg.exe"),
         "ffprobe": shutil.which("ffprobe") or shutil.which("ffprobe.exe") or str(Path.home() / "bin" / "ffprobe.exe"),
     }
+    for label, executable in required_agent_commands(config).items():
+        commands[label] = shutil.which(executable) or executable
     available = {name: bool(path and Path(path).exists()) for name, path in commands.items()}
     upstream = project / ".private" / "sxhzju-auto-motion" / "auto-vibe-"
     vendor = project / "vendor" / "auto-vibe"

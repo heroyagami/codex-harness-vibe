@@ -12,9 +12,12 @@ from .pipeline import (
 )
 from .director import direct
 from .sequence_review import build_sequence_review
-from .config import config_for_run
+from .config import config_for_run, load_config
 from .state import StateGraph, input_hash
 from .doctor import doctor as run_doctor
+from .asset_library import AssetLibrary, asset_root
+from .style_memory import StyleMemory, memory_root
+from .reporting import build_production_report
 
 
 def main() -> None:
@@ -71,6 +74,25 @@ def main() -> None:
     assembly = sub.add_parser("assemble", help="Assemble scenes, transitions, narration and captions")
     assembly.add_argument("--run", type=Path, required=True)
     assembly.add_argument("--output", type=Path)
+
+    asset_add = sub.add_parser("asset-add", help="Add a licensed reusable asset to the shared library")
+    asset_add.add_argument("--file", type=Path, required=True)
+    asset_add.add_argument("--tags", nargs="+", required=True)
+    asset_add.add_argument("--license", required=True)
+    asset_add.add_argument("--source-url", default="")
+    asset_add.add_argument("--attribution", default="")
+    asset_add.add_argument("--config", type=Path)
+
+    asset_list = sub.add_parser("asset-list", help="Search the shared reusable asset library")
+    asset_list.add_argument("--query", default="")
+    asset_list.add_argument("--limit", type=int, default=50)
+    asset_list.add_argument("--config", type=Path)
+
+    memory_report = sub.add_parser("memory-report", help="Show reusable good/bad scene memory counts")
+    memory_report.add_argument("--config", type=Path)
+
+    metrics = sub.add_parser("metrics", help="Rebuild production timing, cost and failure reports")
+    metrics.add_argument("--run", type=Path, required=True)
 
     sub.add_parser("doctor", help="Verify local tools and purchased-source synchronization")
 
@@ -186,6 +208,30 @@ def main() -> None:
             print(json.dumps(build_sequence_review(args.run.resolve()), ensure_ascii=False, indent=2))
         elif args.command == "assemble":
             print(json.dumps(assemble(args.run.resolve(), args.output.resolve() if args.output else None), ensure_ascii=False, indent=2))
+        elif args.command == "asset-add":
+            config = load_config(args.config.resolve() if args.config else None)
+            library = AssetLibrary(asset_root(str(config.assets.get("library_path", "")), config.source))
+            print(json.dumps(library.add(
+                args.file.resolve(), tags=args.tags, license_name=args.license,
+                source_url=args.source_url, attribution=args.attribution,
+            ), ensure_ascii=False, indent=2))
+        elif args.command == "asset-list":
+            config = load_config(args.config.resolve() if args.config else None)
+            library = AssetLibrary(asset_root(str(config.assets.get("library_path", "")), config.source))
+            records = library.select(args.query, limit=args.limit) if args.query else library.list_all(limit=args.limit)
+            print(json.dumps(records, ensure_ascii=False, indent=2))
+        elif args.command == "memory-report":
+            config = load_config(args.config.resolve() if args.config else None)
+            memory = StyleMemory(memory_root(str(config.memory.get("path", "")), config.source))
+            report = {
+                "path": str(memory.root),
+                "good_scenes": len(list((memory.root / "good-scenes").glob("*.json"))),
+                "bad_scenes": len(list((memory.root / "bad-scenes").glob("*.json"))),
+                "style_rules": str(memory.root / "style-rules.json"),
+            }
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        elif args.command == "metrics":
+            print(json.dumps(build_production_report(args.run.resolve()), ensure_ascii=False, indent=2))
         elif args.command == "doctor":
             report = run_doctor(Path(__file__).resolve().parents[2])
             print(json.dumps(report, ensure_ascii=False, indent=2))

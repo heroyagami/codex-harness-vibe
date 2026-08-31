@@ -24,6 +24,20 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(route, ModelRoute("claude", "cheap", "strong", 0.0))
             self.assertEqual(claude_command("claude", route)[-2:], ["--model", "cheap"])
 
+    def test_generic_cli_command_and_cross_provider_fallback_are_loaded(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "harness.toml"
+            path.write_text(
+                '[models.scene_worker]\nprovider="generic_cli"\nmodel="qwen"\n'
+                'command=["qwen", "run", "--prompt-file", "{prompt_file}"]\n'
+                'fallback_provider="codex_worker"\nfallback_model="gpt"\n',
+                encoding="utf-8",
+            )
+            route = load_config(path).route("scene_worker")
+            self.assertEqual(route.provider, "generic_cli")
+            self.assertEqual(route.command[0], "qwen")
+            self.assertEqual(route.fallback_provider, "codex_worker")
+
     def test_cost_cap_requires_per_call_estimates(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "harness.toml"

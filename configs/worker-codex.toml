@@ -1,0 +1,20 @@
+[models.scene_worker]
+provider = "codex_worker"
+model = ""
+fallback_provider = ""
+fallback_model = ""
+estimated_cost_usd = 0.0
+
+[models.revision_worker]
+provider = "codex_worker"
+model = ""
+fallback_provider = ""
+fallback_model = ""
+estimated_cost_usd = 0.0
+
+[models.transition_worker]
+provider = "codex_worker"
+model = ""
+fallback_provider = ""
+fallback_model = ""
+estimated_cost_usd = 0.0

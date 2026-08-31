@@ -2,10 +2,23 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from legal_auto_motion.doctor import KNOWN_VENDOR_OVERRIDES, compare_vendor
+from legal_auto_motion.config import load_config
+from legal_auto_motion.doctor import KNOWN_VENDOR_OVERRIDES, compare_vendor, required_agent_commands
 
 
 class DoctorTests(unittest.TestCase):
+    def test_agent_requirements_follow_selected_adapters(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "config.toml"
+            path.write_text(
+                '[models.scene_worker]\nprovider="generic_cli"\ncommand=["workbuddy", "run"]\n'
+                '[models.revision_worker]\nprovider="codex_worker"\n',
+                encoding="utf-8",
+            )
+            commands = required_agent_commands(load_config(path))
+            self.assertIn("workbuddy", commands.values())
+            self.assertIn("codex", commands.values())
+
     def test_approved_harness_overrides_are_accepted(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

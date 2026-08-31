@@ -68,6 +68,23 @@ def codex_text_command(route: ModelRoute, response_path: Path, schema_path: Path
     return command
 
 
+def codex_worker_command(route: ModelRoute, response_path: Path) -> list[str]:
+    shim = shutil.which("codex.cmd")
+    if shim:
+        script = Path(shim).parent / "node_modules" / "@openai" / "codex" / "bin" / "codex.js"
+        prefix = [shutil.which("node.exe") or shutil.which("node") or "node", str(script)]
+    else:
+        prefix = [shutil.which("codex") or "codex"]
+    command = prefix + [
+        "exec", "--skip-git-repo-check", "--ephemeral", "--ignore-rules",
+        "--sandbox", "workspace-write", "--output-last-message", str(response_path),
+    ]
+    if route.model:
+        command.extend(["--model", route.model])
+    command.append("-")
+    return command
+
+
 def read_manual_critique(scene_dir: Path) -> dict:
     path = scene_dir / "artifacts" / "manual-critique.json"
     if not path.exists():

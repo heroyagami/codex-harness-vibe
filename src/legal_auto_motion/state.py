@@ -4,6 +4,7 @@ import hashlib
 import json
 import time
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -11,7 +12,7 @@ from typing import Iterable
 
 NODE_ORDER = (
     "initialized", "directed", "prepared", "authored", "fact_passed",
-    "timing_passed", "rendered", "visual_passed", "critic_passed",
+    "timing_passed", "rendered", "visual_passed", "motion_passed", "critic_passed",
     "transition_ready", "assembled",
 )
 _STATE_LOCK = threading.Lock()
@@ -89,3 +90,66 @@ class StateGraph:
             usage["calls"] += 1
             usage["cost_usd"] = round(float(usage["cost_usd"]) + estimated_cost_usd, 6)
             self.save(state)
+
+    def begin_call(
+        self, *, role: str, provider: str, model: str = "", scope: str = "",
+        max_calls: int = 0, max_cost_usd: float = 0.0, estimated_cost_usd: float = 0.0,
+    ) -> str:
+        call_id = uuid.uuid4().hex
+        with _STATE_LOCK:
+            state = self.load()
+            usage = state.setdefault("usage", {"calls": 0, "cost_usd": 0.0})
+            if max_calls and int(usage.get("calls", 0)) + 1 > max_calls:
+                raise RuntimeError("Model-call budget exhausted")
+            if max_cost_usd and float(usage.get("cost_usd", 0.0)) + estimated_cost_usd > max_cost_usd:
+                raise RuntimeError("Cost budget exhausted")
+            usage["calls"] = int(usage.get("calls", 0)) + 1
+            usage["cost_usd"] = round(float(usage.get("cost_usd", 0.0)) + estimated_cost_usd, 6)
+            usage.setdefault("events", []).append({
+                "call_id": call_id,
+                "role": role,
+                "provider": provider,
+                "model": model,
+                "scope": scope,
+                "status": "running",
+                "started_at": time.time(),
+                "estimated_cost_usd": round(float(estimated_cost_usd), 6),
+            })
+            self.save(state)
+        return call_id
+
+    def finish_call(
+        self, call_id: str, *, status: str, error: str = "", actual_cost_usd: float | None = None,
+    ) -> None:
+        with _STATE_LOCK:
+            state = self.load()
+            usage = state.setdefault("usage", {"calls": 0, "cost_usd": 0.0})
+            event = next((item for item in usage.setdefault("events", []) if item.get("call_id") == call_id), None)
+            if event is None:
+                raise KeyError(f"Unknown model call: {call_id}")
+            finished = time.time()
+            event["status"] = status
+            event["finished_at"] = finished
+            event["duration_seconds"] = round(max(0.0, finished - float(event.get("started_at", finished))), 3)
+            if error:
+                event["error"] = error[:2000]
+                event["error_category"] = _error_category(error)
+            if actual_cost_usd is not None:
+                estimated = float(event.get("estimated_cost_usd", 0.0))
+                actual = round(float(actual_cost_usd), 6)
+                event["actual_cost_usd"] = actual
+                usage["cost_usd"] = round(float(usage.get("cost_usd", 0.0)) - estimated + actual, 6)
+            self.save(state)
+
+
+def _error_category(error: str) -> str:
+    lowered = error.lower()
+    if any(marker in lowered for marker in ("quota", "usage limit", "rate limit", "429")):
+        return "quota"
+    if "timeout" in lowered or "timed out" in lowered:
+        return "timeout"
+    if "budget" in lowered:
+        return "budget"
+    if "permission" in lowered or "access denied" in lowered:
+        return "permission"
+    return "agent_error"

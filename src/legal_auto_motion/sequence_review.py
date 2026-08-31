@@ -34,6 +34,8 @@ def build_sequence_review(run_dir: Path) -> dict:
         video = scene_dir / f"{scene_id}.mov"
         middle = scene_dir / "artifacts" / "visual-gate" / "mid.png"
         state_path = scene_dir / "worker-state.json"
+        motion_path = scene_dir / "artifacts" / "motion-gate" / "motion-gate.json"
+        motion = json.loads(motion_path.read_text(encoding="utf-8")) if motion_path.exists() else {}
         state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {"status": "not_started"}
         rows.append(
             {
@@ -41,6 +43,8 @@ def build_sequence_review(run_dir: Path) -> dict:
                 "status": state.get("status", "unknown"),
                 "video_ready": video.exists() and video.stat().st_size > 0,
                 "midpoint_ready": middle.exists(),
+                "motion_status": motion.get("status", "missing"),
+                "max_idle_seconds": motion.get("max_idle_seconds"),
             }
         )
         if middle.exists():
@@ -77,13 +81,15 @@ def build_sequence_review(run_dir: Path) -> dict:
         critique = run_dir / "scenes" / row["scene_id"] / "artifacts" / "creative-critique.json"
         if not critique.exists() or json.loads(critique.read_text(encoding="utf-8")).get("verdict") != "pass":
             critic_missing.append(row["scene_id"])
-    passed = ready == scene_count and not repeated_runs and not critic_missing
+    motion_rejected = [row["scene_id"] for row in rows if row["motion_status"] != "accepted"]
+    passed = ready == scene_count and not repeated_runs and not critic_missing and not motion_rejected
     report = {
         "status": "pass" if passed else "rejected",
         "scene_count": scene_count,
         "rendered_count": ready,
         "missing_scenes": [row["scene_id"] for row in rows if not row["video_ready"]],
         "critic_missing": critic_missing,
+        "motion_rejected": motion_rejected,
         "adjacent_midpoint_similarity": similarities,
         "repeated_silhouette_runs": repeated_runs,
         "scenes": rows,

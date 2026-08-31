@@ -39,6 +39,17 @@ class StateGraphTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "budget exhausted"):
                 graph.reserve_call(max_calls=1)
 
+    def test_call_lifecycle_records_role_duration_and_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            graph = StateGraph(Path(folder) / "state.json")
+            call_id = graph.begin_call(role="scene_worker", provider="codex_worker", model="gpt")
+            graph.finish_call(call_id, status="failed", error="quota exceeded")
+            event = graph.load()["usage"]["events"][0]
+            self.assertEqual(event["role"], "scene_worker")
+            self.assertEqual(event["status"], "failed")
+            self.assertEqual(event["error_category"], "quota")
+            self.assertGreaterEqual(event["duration_seconds"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

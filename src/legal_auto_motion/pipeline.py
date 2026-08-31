@@ -10,16 +10,21 @@ from pathlib import Path
 
 from .facts import write_audit
 from .config import HarnessConfig, ModelRoute, config_for_run
-from .providers import claude_command, codex_command, codex_text_command, is_retryable_model_failure, read_manual_critique
+from .agent_adapters import build_invocation
+from .motion_gate import inspect_motion
+from .style_memory import StyleMemory, memory_root
+from .asset_library import AssetLibrary, asset_root
+from .providers import codex_command, is_retryable_model_failure, read_manual_critique
 from .srt import parse_srt
 from .state import StateGraph, file_hash, input_hash
 from .timing import write_timing_audit
 from .visual_gate import inspect_render
+from .reporting import build_production_report
 
 
 ROOT = Path(__file__).resolve().parents[2]
 VENDOR = ROOT / "vendor" / "auto-vibe"
-CRITIC_PROMPT_VERSION = "direct-three-frame-rubric-v2"
+CRITIC_PROMPT_VERSION = "three-frame-plus-motion-strip-rubric-v3"
 
 
 class WorkerQuotaExceeded(RuntimeError):
@@ -140,6 +145,8 @@ def build_from_director(run_dir: Path, director_plan: Path) -> tuple[dict, dict]
             "approved_copy": approved,
             "meaning": source.get("meaning", ""),
             "visual_goal": source.get("visual_goal", ""),
+            "grammar": source.get("grammar", ""),
+            "section": source.get("section", "body"),
         }
     transitions = []
     hard_boundaries = {
@@ -231,6 +238,13 @@ def _fact_prompt(contract: dict) -> str:
 def prepare(run_dir: Path) -> None:
     plan = run_dir / "scene-plan.json"
     contracts = json.loads((run_dir / "fact-contracts.json").read_text(encoding="utf-8"))
+    config = config_for_run(run_dir)
+    style_memory = None
+    if bool(config.memory.get("enabled", True)):
+        style_memory = StyleMemory(memory_root(str(config.memory.get("path", "")), config.source))
+    asset_library = None
+    if bool(config.assets.get("enabled", True)):
+        asset_library = AssetLibrary(asset_root(str(config.assets.get("library_path", "")), config.source))
     run_command([sys.executable, "scene_plan.py", str(plan)], run_dir)
     _ensure_dependencies(run_dir)
     expected_scene_dirs = [
@@ -254,6 +268,17 @@ def prepare(run_dir: Path) -> None:
         shutil.copy2(background, scene_dir / "public" / "img" / "darkbg.png")
         contract = contracts[scene_dir.name]
         write_json(scene_dir / "fact-contract.json", contract)
+        if style_memory is not None:
+            guidance = style_memory.guidance(
+                str(contract.get("grammar", "")),
+                limit=int(config.memory.get("max_examples_per_grammar", 3)),
+            )
+            (scene_dir / "artifacts").mkdir(parents=True, exist_ok=True)
+            (scene_dir / "artifacts" / "style-memory-guidance.md").write_text(guidance, encoding="utf-8")
+        if asset_library is not None:
+            query = " ".join(str(contract.get(key, "")) for key in ("narration", "meaning", "visual_goal", "grammar"))
+            selected = asset_library.select(query, limit=int(config.assets.get("max_assets_per_scene", 12)))
+            asset_library.materialize(selected, scene_dir / "public" / "library")
         prompt = scene_dir / "claude-scene-prompt.md"
         fact_prompt = _fact_prompt(contract)
         prompt_text = prompt.read_text(encoding="utf-8")
@@ -303,6 +328,7 @@ def worker_prompt(revision: bool = False) -> str:
         )
     return (
         "读取 claude-scene-prompt.md 的 frontmatter、字幕、research_brief、边界契约和末尾事实契约，"
+        "同时读取 artifacts/style-memory-guidance.md 和 public/asset-catalog.json（存在时）；风格记忆只提供原则，素材目录只使用授权信息明确的本地文件。"
         "但不要执行其中的素材生成、联网搜索、阶段汇报、渲染、抽帧或视觉复核流程；这些由外层 Harness 负责。"
         "你唯一的交付是先完成 frame.md，再写 scenes/DefaultScene.tsx，并运行一次 pnpm run verify。"
         "优先使用纯 Remotion MG、CSS 几何、SVG 和现有本地素材；不得调用 Agent、图片生成或视觉模型。"
@@ -316,10 +342,12 @@ def scene_fingerprints(scene_dir: Path, config: HarnessConfig) -> tuple[str, str
         [scene_dir / "fact-contract.json", scene_dir / "scene-metadata.json", scene_dir / "claude-scene-prompt.md"],
         [
             config.route("scene_worker").provider, config.route("scene_worker").model,
-            config.route("scene_worker").fallback_model, worker_prompt(),
+            config.route("scene_worker").fallback_provider, config.route("scene_worker").fallback_model,
+            " ".join(config.route("scene_worker").command), worker_prompt(),
         ],
     )
     images = [scene_dir / "artifacts" / "visual-gate" / f"{label}-review.jpg" for label in ("early", "mid", "late")]
+    images.append(scene_dir / "artifacts" / "motion-gate" / "motion-contact-sheet.jpg")
     critic = input_hash(
         images,
         [config.route("critic").provider, config.route("critic").model, CRITIC_PROMPT_VERSION],
@@ -327,16 +355,7 @@ def scene_fingerprints(scene_dir: Path, config: HarnessConfig) -> tuple[str, str
     return authored, critic
 
 
-def _claude_executable() -> str:
-    npm_shim = shutil.which("claude.cmd")
-    if npm_shim:
-        native = Path(npm_shim).parent / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe"
-        if native.exists():
-            return str(native)
-    return shutil.which("claude.exe") or shutil.which("claude") or "claude"
-
-
-def _run_claude(
+def _run_agent(
     scene_dir: Path,
     prompt: str,
     timeout: int,
@@ -346,69 +365,55 @@ def _run_claude(
     route: ModelRoute | None = None,
     state_graph: StateGraph | None = None,
     config: HarnessConfig | None = None,
+    role: str = "agent",
 ) -> str:
     route = route or ModelRoute("claude")
+    call_id = None
     if state_graph and config:
-        state_graph.reserve_call(
+        call_id = state_graph.begin_call(
+            role=role, provider=route.provider, model=route.model, scope=scene_dir.name,
             max_calls=int(config.budget.get("max_model_calls", 0)),
             max_cost_usd=float(config.budget.get("max_total_cost_usd", 0.0)),
             estimated_cost_usd=route.estimated_cost_usd,
         )
-    if route.provider == "codex_text":
+    try:
         artifact_dir = scene_dir / ".harness"
         artifact_dir.mkdir(exist_ok=True)
-        response_path = artifact_dir / "last-response.txt"
-        response_path.unlink(missing_ok=True)
         schema_path = None
         if json_schema is not None:
             schema_path = artifact_dir / "response-schema.json"
             write_json(schema_path, json_schema)
-        command = codex_text_command(route, response_path, schema_path)
+        invocation = build_invocation(
+            scene_dir, prompt, route, structured=json_schema is not None, schema_path=schema_path
+        )
         result = subprocess.run(
-            command, cwd=scene_dir, input=prompt, check=False, timeout=timeout,
+            invocation.command, cwd=scene_dir, input=invocation.stdin, check=False, timeout=timeout,
             text=True, encoding="utf-8", errors="replace", capture_output=True,
+            env=invocation.env,
         )
         combined = "\n".join(value for value in (result.stdout, result.stderr) if value)
-        if result.returncode != 0 or not response_path.exists():
+        if result.returncode != 0:
             if is_retryable_model_failure(combined):
-                raise WorkerQuotaExceeded(combined.strip() or "Codex quota exceeded")
-            raise subprocess.CalledProcessError(result.returncode, command, output=result.stdout, stderr=result.stderr)
-        return response_path.read_text(encoding="utf-8")
-    if route.provider != "claude":
-        raise ValueError(f"Unsupported text provider: {route.provider}")
-    command = claude_command(_claude_executable(), route, structured=json_schema is not None)
-    if json_schema is not None:
-        command.extend(["--json-schema", json.dumps(json_schema, ensure_ascii=False)])
-    # On Windows, claude.cmd drops the final prompt when --tools receives an
-    # empty argument. Director calls remain read-only by contract and their
-    # output is captured by the harness, so omitting the flag is safer.
-    claude_env = os.environ.copy()
-    if route.model:
-        # Claude Code may spawn built-in Explore/Plan agents while authoring a
-        # scene. Keep those agents on the explicitly requested production
-        # model instead of inheriting a stale global cheap-model override.
-        claude_env["CLAUDE_CODE_SUBAGENT_MODEL"] = route.model
-    result = subprocess.run(
-        command,
-        cwd=scene_dir,
-        input=prompt,
-        check=False,
-        timeout=timeout,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        env=claude_env,
-    )
-    output = "\n".join(value for value in (result.stdout, result.stderr) if value)
-    if output:
-        console_encoding = sys.stdout.encoding or "utf-8"
-        print(output.encode(console_encoding, errors="replace").decode(console_encoding, errors="replace"))
-    if result.returncode != 0:
-        if is_retryable_model_failure(output):
-            raise WorkerQuotaExceeded(output.strip() or "Claude worker quota exceeded")
-        raise subprocess.CalledProcessError(result.returncode, command, output=result.stdout, stderr=result.stderr)
-    return result.stdout or ""
+                raise WorkerQuotaExceeded(combined.strip() or f"{route.provider} quota exceeded")
+            raise subprocess.CalledProcessError(
+                result.returncode, invocation.command, output=result.stdout, stderr=result.stderr
+            )
+        if invocation.response_path and invocation.response_path.exists():
+            output = invocation.response_path.read_text(encoding="utf-8")
+        elif route.provider in {"codex_text", "codex_worker"}:
+            raise RuntimeError(f"{route.provider} did not write {invocation.response_path}")
+        else:
+            output = result.stdout or ""
+        if combined and route.provider == "claude":
+            console_encoding = sys.stdout.encoding or "utf-8"
+            print(combined.encode(console_encoding, errors="replace").decode(console_encoding, errors="replace"))
+        if call_id and state_graph:
+            state_graph.finish_call(call_id, status="complete")
+        return output
+    except Exception as exc:
+        if call_id and state_graph:
+            state_graph.finish_call(call_id, status="failed", error=str(exc))
+        raise
 
 
 def _run_role(
@@ -417,17 +422,24 @@ def _run_role(
 ) -> str:
     route = config.route(role)
     try:
-        return _run_claude(
+        return _run_agent(
             scene_dir, prompt, timeout, json_schema=json_schema, route=route,
-            state_graph=state_graph, config=config,
+            state_graph=state_graph, config=config, role=role,
         )
     except (WorkerQuotaExceeded, subprocess.CalledProcessError):
         if not route.fallback_model or route.fallback_model == route.model:
             raise
-        fallback = ModelRoute(route.provider, route.fallback_model, "", route.estimated_cost_usd)
-        return _run_claude(
+        fallback = ModelRoute(
+            route.fallback_provider or route.provider,
+            route.fallback_model,
+            "",
+            route.estimated_cost_usd,
+            "",
+            route.command if not route.fallback_provider else (),
+        )
+        return _run_agent(
             scene_dir, prompt, timeout, json_schema=json_schema, route=fallback,
-            state_graph=state_graph, config=config,
+            state_graph=state_graph, config=config, role=role,
         )
 
 
@@ -445,6 +457,11 @@ def _render_scene(scene_dir: Path) -> dict:
     if visual["status"] != "accepted":
         problems = "; ".join(visual.get("problems", [])) or "visual gate rejected representative frames"
         raise RuntimeError(f"{scene_dir.name} failed visual gate: {problems}")
+    motion = inspect_motion(scene_dir)
+    if motion["status"] != "accepted":
+        problems = "; ".join(motion.get("problems", [])) or "motion gate rejected sampled animation"
+        raise RuntimeError(f"{scene_dir.name} failed motion gate: {problems}")
+    visual["motion_gate"] = motion
     subprocess.run([pnpm, "run", "transition-handles:render"], cwd=scene_dir, env=env, check=True)
     return visual
 
@@ -502,10 +519,11 @@ def _creative_critique(scene_dir: Path, timeout: int, *, config: HarnessConfig |
     }
     write_json(schema_path, schema)
     prompt = (
-        "你是严格的短视频视觉审查员。三张附件依次是 early、mid、late 帧。"
+        "你是严格的短视频视觉审查员。前三张附件依次是 early、mid、late 帧，第四张是每0.5秒采样的动画联系表。"
         "结合当前目录 fact-contract.json 与 frame.md，只依据你直接看到的画面，按0到2分评价："
         "semantic_clarity、visual_thesis、information_density、composition、motion_purpose、rhythm、continuity、caption_safety。"
-        "每张图必须写一条具体视觉观察；纯文字堆叠、主体难辨、构图空、画面重复、边缘裁切或字幕保留区有主体应扣分。"
+        "前三张图必须各写一条具体视觉观察；同时根据动画联系表和 artifacts/motion-gate/motion-gate.json 判断进入、变化、停顿和节奏，不能仅凭三张静帧猜动画。"
+        "纯文字堆叠、主体难辨、构图空、画面重复、长时间无变化、边缘裁切或字幕保留区有主体应扣分。"
         "同时检查短视频平台UI安全线：人物脸、数字、结论、Logo等关键内容须在x=110..970、y=145..1000，字幕须在x=110..970且不得低于y=1295；越线时caption_safety不得给2分。"
         "problems 与 revision 必须具体可执行。只返回符合 schema 的 JSON。"
     )
@@ -519,25 +537,35 @@ def _creative_critique(scene_dir: Path, timeout: int, *, config: HarnessConfig |
         return report
     if route.provider != "codex_images":
         raise ValueError(f"Unsupported visual critic provider: {route.provider}")
+    call_id = None
     if state_graph:
-        state_graph.reserve_call(
+        call_id = state_graph.begin_call(
+            role="critic", provider=route.provider, model=route.model, scope=scene_dir.name,
             max_calls=int(config.budget.get("max_model_calls", 0)),
             max_cost_usd=float(config.budget.get("max_total_cost_usd", 0.0)),
             estimated_cost_usd=route.estimated_cost_usd,
         )
     images = [scene_dir / "artifacts" / "visual-gate" / f"{label}-review.jpg" for label in ("early", "mid", "late")]
+    images.append(scene_dir / "artifacts" / "motion-gate" / "motion-contact-sheet.jpg")
     if not all(image.exists() for image in images):
         raise RuntimeError("Visual critic cannot run because review images are missing")
     command = codex_command(route, schema_path, response_path, images)
-    result = subprocess.run(
-        command, cwd=scene_dir, input=prompt, text=True, encoding="utf-8", errors="replace",
-        capture_output=True, timeout=timeout, check=False,
-    )
-    if result.returncode != 0 or not response_path.exists():
-        raise RuntimeError(f"{scene_dir.name} Codex visual critic failed: {(result.stderr or result.stdout).strip()}")
-    report = _validate_creative_critique(json.loads(response_path.read_text(encoding="utf-8")))
-    write_json(output, report)
-    return report
+    try:
+        result = subprocess.run(
+            command, cwd=scene_dir, input=prompt, text=True, encoding="utf-8", errors="replace",
+            capture_output=True, timeout=timeout, check=False,
+        )
+        if result.returncode != 0 or not response_path.exists():
+            raise RuntimeError(f"{scene_dir.name} Codex visual critic failed: {(result.stderr or result.stdout).strip()}")
+        report = _validate_creative_critique(json.loads(response_path.read_text(encoding="utf-8")))
+        write_json(output, report)
+        if call_id and state_graph:
+            state_graph.finish_call(call_id, status="complete")
+        return report
+    except Exception as exc:
+        if call_id and state_graph:
+            state_graph.finish_call(call_id, status="failed", error=str(exc))
+        raise
 
 
 def _creative_revision_prompt() -> str:
@@ -553,13 +581,17 @@ def _render_with_visual_revisions(
     config: HarnessConfig | None = None, state_graph: StateGraph | None = None,
 ) -> dict:
     report_path = scene_dir / "artifacts" / "visual-gate" / "visual-gate.json"
+    motion_report_path = scene_dir / "artifacts" / "motion-gate" / "motion-gate.json"
     for attempt in range(max_revisions + 1):
         try:
             return _render_scene(scene_dir)
         except RuntimeError as exc:
-            if "failed visual gate" not in str(exc) or not report_path.exists() or attempt >= max_revisions:
+            visual_failure = "failed visual gate" in str(exc)
+            motion_failure = "failed motion gate" in str(exc)
+            selected_report = report_path if visual_failure else motion_report_path
+            if not (visual_failure or motion_failure) or not selected_report.exists() or attempt >= max_revisions:
                 raise
-            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report = json.loads(selected_report.read_text(encoding="utf-8"))
             write_json(
                 scene_dir / "artifacts" / "visual-revision-request.json",
                 {"attempt": attempt + 1, "problems": report.get("problems", []), "report": report},
@@ -569,7 +601,7 @@ def _render_with_visual_revisions(
                 state_graph = StateGraph(scene_dir.parents[1] / "harness-state.json")
             _run_role(
                 scene_dir,
-                "读取 artifacts/visual-revision-request.json 并修复全部可见性问题。"
+                "读取 artifacts/visual-revision-request.json 并修复全部可见性或动画节奏问题。"
                 "允许调整构图和scenes/DefaultScene.tsx，但不得改事实、时长或字幕。"
                 "关键主体、人物脸、数字、结论和Logo必须保持在短视频平台UI安全区x=110..970、y=145..1000；字幕不得低于y=1295。尤其不得以全宽前景背景触碰左右平台UI区。"
                 "DefaultScene根AbsoluteFill必须透明，不得设置全画布background或backgroundColor；统一背景由Root提供。"
@@ -649,11 +681,35 @@ def run_scene(
         "visual_passed", input_hash([prior_video]),
         outputs=[scene_dir / "artifacts" / "visual-gate" / "visual-gate.json"],
     )
+
+
+def _remember_critique(scene_dir: Path, critique: dict, config: HarnessConfig) -> None:
+    if not bool(config.memory.get("enabled", True)):
+        return
+    contract = json.loads((scene_dir / "fact-contract.json").read_text(encoding="utf-8"))
+    StyleMemory(memory_root(str(config.memory.get("path", "")), config.source)).record(
+        scene_id=scene_dir.name,
+        grammar=str(contract.get("grammar", "")),
+        visual_goal=str(contract.get("visual_goal", "")),
+        verdict=str(critique.get("verdict", "revise")),
+        scores=dict(critique.get("scores", {})),
+        problems=[str(value) for value in critique.get("problems", [])],
+        revision=[str(value) for value in critique.get("revision", [])],
+        source_run=scene_dir.parents[1].name,
+    )
+    scene_graph.complete(
+        "motion_passed", input_hash([prior_video]),
+        outputs=[
+            scene_dir / "artifacts" / "motion-gate" / "motion-gate.json",
+            scene_dir / "artifacts" / "motion-gate" / "motion-review.mp4",
+        ],
+    )
     critique = None
     if critic_enabled:
         for creative_attempt in range(max_creative_revisions + 1):
             write_json(state_path, {"status": "creative_review", "attempt": creative_attempt + 1})
             critique = _creative_critique(scene_dir, timeout, config=config, state_graph=state_graph)
+            _remember_critique(scene_dir, critique, config)
             if critique["verdict"] == "pass":
                 scene_graph.complete(
                     "critic_passed",
@@ -738,6 +794,7 @@ def run_scenes(
                 results.append(failure)
                 write_json(run_dir / "scenes" / scene_id / "worker-state.json", failure)
     write_json(run_dir / "scene-production-results.json", results)
+    build_production_report(run_dir)
     return results
 
 
@@ -781,6 +838,7 @@ def run_transitions(run_dir: Path, transition_ids: list[str], *, concurrency: in
         StateGraph(run_dir / "harness-state.json").complete(
             "transition_ready", input_hash([run_dir / "scene-plan.json"] + outputs), outputs=outputs,
         )
+    build_production_report(run_dir)
     return results
 
 
@@ -814,6 +872,9 @@ def assemble(run_dir: Path, output: Path | None = None) -> dict:
         visual_path = scene_dir / "artifacts" / "visual-gate" / "visual-gate.json"
         if not visual_path.exists() or json.loads(visual_path.read_text(encoding="utf-8")).get("status") != "accepted":
             preflight_problems.append(f"{scene_id}: visual gate is not accepted")
+        motion_path = scene_dir / "artifacts" / "motion-gate" / "motion-gate.json"
+        if not motion_path.exists() or json.loads(motion_path.read_text(encoding="utf-8")).get("status") != "accepted":
+            preflight_problems.append(f"{scene_id}: motion gate is not accepted")
         critique_path = scene_dir / "artifacts" / "creative-critique.json"
         if not critique_path.exists() or json.loads(critique_path.read_text(encoding="utf-8")).get("verdict") != "pass":
             preflight_problems.append(f"{scene_id}: creative critic has not passed")
@@ -855,7 +916,11 @@ def assemble(run_dir: Path, output: Path | None = None) -> dict:
         encoding="utf-8",
         check=True,
     )
-    report = {"status": "complete", "output": str(output), "probe": json.loads(probe.stdout)}
+    metrics = build_production_report(run_dir)
+    report = {
+        "status": "complete", "output": str(output), "probe": json.loads(probe.stdout),
+        "production_metrics": metrics["summary"],
+    }
     write_json(run_dir / "completion-report.json", report)
     StateGraph(run_dir / "harness-state.json").complete(
         "assembled",

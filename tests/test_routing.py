@@ -19,7 +19,7 @@ class RoutingTests(unittest.TestCase):
             root = Path(folder)
             graph = StateGraph(root / "state.json")
             with patch(
-                "legal_auto_motion.pipeline._run_claude",
+                "legal_auto_motion.pipeline._run_agent",
                 side_effect=[WorkerQuotaExceeded("429"), "done"],
             ) as mocked:
                 result = _run_role(root, "work", 10, config=config, role="scene_worker", state_graph=graph)
