@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,6 +59,24 @@ def _isolation_prefix() -> str:
     )
 
 
+def _write_invocation_manifest(artifacts: Path, cwd: Path, route: ModelRoute, prompt: str) -> None:
+    payload = {
+        "version": CONTEXT_POLICY_VERSION,
+        "scene_id": cwd.name,
+        "fresh_context": True,
+        "provider": route.provider,
+        "model": route.model,
+        "prompt_chars": len(prompt),
+        "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        "created_at": time.time(),
+        "session_history_inherited": False,
+        "sibling_scene_history_allowed": False,
+    }
+    (artifacts / "invocation-context.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def build_invocation(
     cwd: Path,
     prompt: str,
@@ -82,6 +103,7 @@ def build_invocation(
         env["HARNESS_CONTEXT_POLICY"] = CONTEXT_POLICY_VERSION
         env["HARNESS_SCENE_ID"] = cwd.name
         env["HARNESS_FRESH_CONTEXT"] = "1"
+        _write_invocation_manifest(artifacts, cwd, route, effective_prompt)
 
     if route.provider == "claude":
         command = claude_command(_claude_executable(), route, structured=structured)
