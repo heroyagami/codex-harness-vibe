@@ -11,6 +11,13 @@ DEFAULT_RULES = {
 }
 
 
+def _clip(value: str, limit: int) -> str:
+    text = str(value).strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+
 class StyleMemory:
     def __init__(self, root: Path):
         self.root = root.expanduser().resolve()
@@ -24,14 +31,16 @@ class StyleMemory:
         self, *, scene_id: str, grammar: str, visual_goal: str, verdict: str,
         scores: dict, problems: list[str], revision: list[str], source_run: str = "",
     ) -> Path:
+        # Memory intentionally stores critique lessons, never frame.md, source code,
+        # prompts, conversation transcripts or complete rendered-scene descriptions.
         record = {
             "scene_id": scene_id,
             "grammar": grammar,
-            "visual_goal": visual_goal,
+            "visual_goal": _clip(visual_goal, 300),
             "verdict": verdict,
             "scores": scores,
-            "problems": problems,
-            "revision": revision,
+            "problems": [_clip(item, 220) for item in problems[:6]],
+            "revision": [_clip(item, 220) for item in revision[:6]],
             "source_run": source_run,
         }
         digest = hashlib.sha256(
@@ -55,22 +64,29 @@ class StyleMemory:
                 break
         return records
 
-    def guidance(self, grammar: str, *, limit: int = 3) -> str:
+    def guidance(self, grammar: str, *, limit: int = 2, max_chars: int = 3500) -> str:
         rules = json.loads((self.root / "style-rules.json").read_text(encoding="utf-8"))
         good = self._records("good-scenes", grammar, limit)
         bad = self._records("bad-scenes", grammar, limit)
-        lines = ["# 可复用风格记忆", "", "## 固定规则"]
-        lines.extend(f"- 避免：{value}" for value in rules.get("avoid", []))
-        lines.extend(f"- 优先：{value}" for value in rules.get("prefer", []))
+        lines = [
+            "# 可复用风格记忆",
+            "",
+            "> 仅提供抽象经验，不包含历史 scene 的完整布局、源码、Prompt 或对话历史。",
+            "",
+            "## 固定规则",
+        ]
+        lines.extend(f"- 避免：{_clip(value, 180)}" for value in rules.get("avoid", [])[:8])
+        lines.extend(f"- 优先：{_clip(value, 180)}" for value in rules.get("prefer", [])[:8])
         if good:
             lines.extend(["", f"## {grammar} 的有效经验"])
-            lines.extend(f"- {item.get('visual_goal', '')}" for item in good)
+            lines.extend(f"- {_clip(item.get('visual_goal', ''), 220)}" for item in good)
         if bad:
             lines.extend(["", f"## {grammar} 的失败经验"])
             for item in bad:
                 details = "；".join(item.get("problems", []) + item.get("revision", []))
-                lines.append(f"- {details or item.get('visual_goal', '')}")
-        return "\n".join(lines).strip() + "\n"
+                lines.append(f"- {_clip(details or item.get('visual_goal', ''), 300)}")
+        text = "\n".join(lines).strip() + "\n"
+        return _clip(text, max_chars).rstrip() + "\n"
 
 
 def memory_root(value: str, config_source: Path | None = None) -> Path:
