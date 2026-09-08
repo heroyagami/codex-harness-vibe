@@ -45,10 +45,17 @@ transition_concurrency = 2
 timeout_seconds = 900
 require_visual_critic = true
 
+[context]
+require_scene_isolation = true
+forbid_sibling_scene_reads = true
+max_prompt_chars = 18000
+max_neighbor_summary_chars = 700
+max_style_memory_chars = 3500
+
 [memory]
 enabled = true
 path = ""
-max_examples_per_grammar = 3
+max_examples_per_grammar = 2
 
 [assets]
 enabled = true
