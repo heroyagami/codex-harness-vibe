@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import ModelRoute
+from .config import ModelRoute, config_for_run
 from .context_policy import CONTEXT_POLICY_VERSION
 from .providers import claude_command, codex_text_command, codex_worker_command
 
@@ -59,7 +59,10 @@ def _isolation_prefix() -> str:
     )
 
 
-def _write_invocation_manifest(artifacts: Path, cwd: Path, route: ModelRoute, prompt: str) -> None:
+def _write_invocation_manifest(
+    artifacts: Path, cwd: Path, route: ModelRoute, prompt: str, *,
+    max_prompt_chars: int, style_memory_chars: int, max_style_memory_chars: int,
+) -> None:
     payload = {
         "version": CONTEXT_POLICY_VERSION,
         "scene_id": cwd.name,
@@ -67,6 +70,9 @@ def _write_invocation_manifest(artifacts: Path, cwd: Path, route: ModelRoute, pr
         "provider": route.provider,
         "model": route.model,
         "prompt_chars": len(prompt),
+        "max_prompt_chars": int(max_prompt_chars),
+        "style_memory_chars": int(style_memory_chars),
+        "max_style_memory_chars": int(max_style_memory_chars),
         "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         "created_at": time.time(),
         "session_history_inherited": False,
@@ -84,7 +90,7 @@ def build_invocation(
     *,
     structured: bool = False,
     schema_path: Path | None = None,
-    max_prompt_chars: int = DEFAULT_MAX_SCENE_PROMPT_CHARS,
+    max_prompt_chars: int | None = None,
 ) -> AgentInvocation:
     cwd = cwd.resolve()
     artifacts = cwd / ".harness"
@@ -95,15 +101,32 @@ def build_invocation(
 
     effective_prompt = prompt
     if _is_scene_worker_cwd(cwd):
+        config = config_for_run(cwd.parents[1])
+        configured_prompt_limit = int(config.context.get("max_prompt_chars", DEFAULT_MAX_SCENE_PROMPT_CHARS))
+        prompt_limit = int(max_prompt_chars or configured_prompt_limit)
+        memory_limit = int(config.context.get("max_style_memory_chars", 3500))
+        guidance_path = cwd / "artifacts" / "style-memory-guidance.md"
+        style_memory_chars = 0
+        if guidance_path.exists():
+            style_memory_chars = len(guidance_path.read_text(encoding="utf-8"))
+            if style_memory_chars > memory_limit:
+                raise ValueError(
+                    f"Style Memory exceeds isolated context budget: {style_memory_chars} > {memory_limit} chars"
+                )
         effective_prompt = _isolation_prefix() + prompt
-        if len(effective_prompt) > max_prompt_chars:
+        if len(effective_prompt) > prompt_limit:
             raise ValueError(
-                f"Scene worker prompt exceeds isolated context budget: {len(effective_prompt)} > {max_prompt_chars} chars"
+                f"Scene worker prompt exceeds isolated context budget: {len(effective_prompt)} > {prompt_limit} chars"
             )
         env["HARNESS_CONTEXT_POLICY"] = CONTEXT_POLICY_VERSION
         env["HARNESS_SCENE_ID"] = cwd.name
         env["HARNESS_FRESH_CONTEXT"] = "1"
-        _write_invocation_manifest(artifacts, cwd, route, effective_prompt)
+        _write_invocation_manifest(
+            artifacts, cwd, route, effective_prompt,
+            max_prompt_chars=prompt_limit,
+            style_memory_chars=style_memory_chars,
+            max_style_memory_chars=memory_limit,
+        )
 
     if route.provider == "claude":
         command = claude_command(_claude_executable(), route, structured=structured)
