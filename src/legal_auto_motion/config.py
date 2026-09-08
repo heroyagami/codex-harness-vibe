@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+SUPPORTED_RENDER_PROFILE = (1080, 1440, 30)
+
 DEFAULT_CONFIG = {
     "models": {
         "director": {"provider": "codex_text", "model": "", "fallback_model": "", "estimated_cost_usd": 0.0},
@@ -85,6 +87,12 @@ def _validate_video_and_safe_zone(merged: dict) -> None:
             raise ValueError(f"video.{field_name} must be a positive integer")
     width = int(video["width"])
     height = int(video["height"])
+    fps = int(video["fps"])
+    if (width, height, fps) != SUPPORTED_RENDER_PROFILE:
+        raise ValueError(
+            "Current auto-vibe vendor renderer supports only 1080x1440@30; "
+            "migrate the vendor/runtime profile before selecting another canvas"
+        )
     required = ("left", "right", "top", "content_bottom", "subtitle_bottom", "edge_guard")
     for field_name in required:
         value = safe.get(field_name)
