@@ -72,6 +72,7 @@ class ContextIsolationTests(unittest.TestCase):
             manifest = json.loads((scene / ".harness" / "invocation-context.json").read_text(encoding="utf-8"))
             self.assertTrue(manifest["fresh_context"])
             self.assertFalse(manifest["session_history_inherited"])
+            self.assertFalse(manifest["sibling_scene_history_allowed"])
             self.assertEqual(manifest["scene_id"], "scene-001")
 
     def test_scene_prompt_over_budget_fails_before_invocation(self):
@@ -82,6 +83,20 @@ class ContextIsolationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "context budget"):
                 build_invocation(scene, "x" * 2000, route, max_prompt_chars=500)
 
+    def test_style_memory_over_configured_budget_fails_before_invocation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "harness.toml").write_text(
+                "[context]\nmax_style_memory_chars=200\nmax_prompt_chars=18000\nmax_neighbor_summary_chars=700\n",
+                encoding="utf-8",
+            )
+            scene = root / "scenes" / "scene-001"
+            (scene / "artifacts").mkdir(parents=True)
+            (scene / "artifacts" / "style-memory-guidance.md").write_text("x" * 300, encoding="utf-8")
+            route = ModelRoute(provider="generic_cli", command=("runner", "{prompt_file}"))
+            with self.assertRaisesRegex(ValueError, "Style Memory exceeds"):
+                build_invocation(scene, "current scene", route)
+
     def test_generic_scene_worker_config_requires_prompt_file(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "harness.toml"
@@ -90,6 +105,13 @@ class ContextIsolationTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "prompt_file"):
+                load_config(path)
+
+    def test_context_isolation_cannot_be_disabled(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "harness.toml"
+            path.write_text("[context]\nrequire_scene_isolation=false\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "mandatory production invariant"):
                 load_config(path)
 
     def test_context_defaults_are_fail_closed(self):
