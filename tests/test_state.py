@@ -6,6 +6,15 @@ from legal_auto_motion.state import StateGraph, input_hash
 
 
 class StateGraphTests(unittest.TestCase):
+    def test_stale_running_calls_are_closed_on_resume(self):
+        with tempfile.TemporaryDirectory() as folder:
+            graph = StateGraph(Path(folder) / "state.json")
+            call_id = graph.begin_call(role="scene_worker", provider="claude", scope="scene-001")
+            self.assertEqual(graph.close_interrupted_calls(), 1)
+            event = next(item for item in graph.load()["usage"]["events"] if item["call_id"] == call_id)
+            self.assertEqual(event["status"], "interrupted")
+            self.assertEqual(event["error_category"], "interrupted")
+
     def test_hash_change_invalidates_only_requested_downstream(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

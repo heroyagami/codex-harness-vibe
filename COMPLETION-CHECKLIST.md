@@ -1,5 +1,11 @@
 # Harness completion checklist
 
+- [x] Long-freeze and low-motion raster-jitter gates feed automatic scene rejection.
+- [x] Optional word-aligned semantic beats produce three-frame timing evidence.
+- [x] Optional sound-effect cues trigger final-mix audibility acceptance.
+- [x] Delivery renders default to deterministic concurrency 1.
+- [ ] A full representative audio/SRT production passes every gate and is watched uninterrupted with fresh eyes.
+
 - [x] Purchased auto-motion source is the single scene/transition/Remotion base.
 - [x] Full-SRT semantic Director with exact cue coverage and grammar diversity gates.
 - [x] Isolated Claude workers with configurable default, cheap and fallback models.

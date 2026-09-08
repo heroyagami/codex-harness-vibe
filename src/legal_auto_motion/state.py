@@ -141,6 +141,26 @@ class StateGraph:
                 usage["cost_usd"] = round(float(usage.get("cost_usd", 0.0)) - estimated + actual, 6)
             self.save(state)
 
+    def close_interrupted_calls(self) -> int:
+        """Close calls left running by a previously interrupted Harness process."""
+        with _STATE_LOCK:
+            state = self.load()
+            now = time.time()
+            closed = 0
+            for event in state.setdefault("usage", {}).setdefault("events", []):
+                if event.get("status") != "running":
+                    continue
+                event.update({
+                    "status": "interrupted", "finished_at": now,
+                    "duration_seconds": round(max(0.0, now - float(event.get("started_at", now))), 3),
+                    "error": "Harness process ended before the model call completed",
+                    "error_category": "interrupted",
+                })
+                closed += 1
+            if closed:
+                self.save(state)
+            return closed
+
 
 def _error_category(error: str) -> str:
     lowered = error.lower()

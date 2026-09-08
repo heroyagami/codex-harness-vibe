@@ -13,6 +13,7 @@ KNOWN_VENDOR_OVERRIDES = {
     "sceneFolder/claude-scene-prompt.md",
     "sceneFolder/frame.md",
     "sceneFolder/scripts/remotion-browser-executable.mjs",
+    "sceneFolder/scripts/remotion-render.mjs",
     "shared_dependencies.py",
     "resources/backgrounds/darkbg.png",
     "resources/backgrounds/lightbg.png",

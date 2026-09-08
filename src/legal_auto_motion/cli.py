@@ -94,6 +94,10 @@ def main() -> None:
     metrics = sub.add_parser("metrics", help="Rebuild production timing, cost and failure reports")
     metrics.add_argument("--run", type=Path, required=True)
 
+    alignment = sub.add_parser("alignment-import", help="Import run-level word timestamps for semantic beat checks")
+    alignment.add_argument("--run", type=Path, required=True)
+    alignment.add_argument("--file", type=Path, required=True)
+
     sub.add_parser("doctor", help="Verify local tools and purchased-source synchronization")
 
     args = parser.parse_args()
@@ -126,6 +130,7 @@ def main() -> None:
                 [config.route("director").provider, config.route("director").model],
             )
             graph = StateGraph(run_dir / "harness-state.json")
+            graph.close_interrupted_calls()
             if (run_dir / "scene-plan.json").exists() and not graph.is_current("directed", directed_fingerprint):
                 reset_directed_outputs(run_dir)
             if not (run_dir / "scene-plan.json").exists():
@@ -232,6 +237,16 @@ def main() -> None:
             print(json.dumps(report, ensure_ascii=False, indent=2))
         elif args.command == "metrics":
             print(json.dumps(build_production_report(args.run.resolve()), ensure_ascii=False, indent=2))
+        elif args.command == "alignment-import":
+            run_dir = args.run.resolve()
+            config = config_for_run(run_dir)
+            destination = run_dir / str(config.alignment.get("word_timestamps_file", "word-timestamps.json"))
+            source = args.file.resolve()
+            data = json.loads(source.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not (isinstance(data.get("words"), list) or isinstance(data.get("sentences"), list)):
+                raise ValueError("Alignment must contain words[] or sentences[].words[]")
+            shutil.copy2(source, destination)
+            print(json.dumps({"status": "imported", "output": str(destination)}, ensure_ascii=False, indent=2))
         elif args.command == "doctor":
             report = run_doctor(Path(__file__).resolve().parents[2])
             print(json.dumps(report, ensure_ascii=False, indent=2))

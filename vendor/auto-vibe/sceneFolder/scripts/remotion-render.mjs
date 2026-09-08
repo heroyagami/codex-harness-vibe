@@ -42,6 +42,9 @@ const imageFormat = (
   process.env.REMOTION_IMAGE_FORMAT || DEFAULT_IMAGE_FORMAT
 ).trim();
 const scale = (process.env.REMOTION_SCALE || DEFAULT_SCALE).trim();
+// Delivery defaults to one renderer. Parallel Chromium workers can introduce
+// nondeterministic canvas/WebGL raster jitter in otherwise identical frames.
+const concurrency = (process.env.REMOTION_CONCURRENCY || "1").trim();
 // Keep WebGL/canvas-heavy scenes renderable in chrome-headless-shell by
 // defaulting to the software GL backend. Override with REMOTION_GL if needed.
 const gl = (process.env.REMOTION_GL || "swangle").trim();
@@ -85,6 +88,8 @@ const run = async () => {
     scale,
     "--gl",
     gl,
+    "--concurrency",
+    concurrency,
   ];
 
   if (codec === "prores") {

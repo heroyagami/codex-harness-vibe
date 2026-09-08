@@ -28,6 +28,12 @@ DEFAULT_CONFIG = {
     },
     "memory": {"enabled": True, "path": "", "max_examples_per_grammar": 3},
     "assets": {"enabled": True, "library_path": "", "max_assets_per_scene": 12},
+    "quality": {
+        "max_freeze_seconds": 0.8, "check_raster_jitter": True,
+        "delivery_render_concurrency": 1, "beat_tolerance_seconds": 0.12,
+        "beat_tail_seconds": 0.5, "require_sfx_checks_when_cues_exist": True,
+    },
+    "alignment": {"require_word_alignment": False, "word_timestamps_file": "word-timestamps.json"},
 }
 
 
@@ -49,6 +55,8 @@ class HarnessConfig:
     source: Path | None = None
     memory: dict[str, str | int | bool] = field(default_factory=dict)
     assets: dict[str, str | int | bool] = field(default_factory=dict)
+    quality: dict[str, str | int | float | bool] = field(default_factory=dict)
+    alignment: dict[str, str | bool] = field(default_factory=dict)
 
     def route(self, role: str) -> ModelRoute:
         if role not in self.models:
@@ -101,6 +109,8 @@ def load_config(path: Path | None = None) -> HarnessConfig:
         source=path,
         memory=merged["memory"],
         assets=merged["assets"],
+        quality=merged["quality"],
+        alignment=merged["alignment"],
     )
 
 

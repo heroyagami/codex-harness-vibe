@@ -45,6 +45,12 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "estimated_cost_usd"):
                 load_config(path)
 
+    def test_quality_defaults_are_production_safe(self):
+        config = load_config()
+        self.assertEqual(config.quality["delivery_render_concurrency"], 1)
+        self.assertEqual(config.quality["max_freeze_seconds"], 0.8)
+        self.assertFalse(config.alignment["require_word_alignment"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,7 +11,7 @@ Codex 语义导演（完整理解文案、拆分语义镜头）
     ↓
 Scene Plan + Fact Contracts + Frame Ledger
     ↓
-隔离 Claude Worker（逐镜头设计并编写 Remotion）
+隔离代码 Worker（Claude / Codex / 通用 CLI Agent，逐镜头设计并编写 Remotion）
     ↓
 事实审查 + 局部时间审查
     ↓
@@ -62,7 +62,7 @@ Harness 的可复用框架已经完成，以下能力已有实现：
 - Windows pnpm 依赖联接、Remotion Chromium 缓存和 ffmpeg 合成；
 - 输入或模型变化后的精确失效与断点续跑。
 
-当前 35 项自动测试通过。框架完成不等于每一期视频自动完成：一条正式视频只有在最终文件存在、所有质量门通过并经过人工完整观看后才算交付。长视频首次生产仍可能暴露模型配额、提示遵循、素材、字体、浏览器或个别镜头审美问题。
+当前 57 项自动测试通过。框架完成不等于每一期视频自动完成：一条正式视频只有在最终文件存在、所有质量门通过并经过人工完整观看后才算交付。长视频首次生产仍可能暴露模型配额、提示遵循、素材、字体、浏览器或个别镜头审美问题。
 
 ## 系统要求
 
@@ -72,7 +72,7 @@ Harness 的可复用框架已经完成，以下能力已有实现：
 - Python 3.11+ 与 Pillow；
 - Node.js 和 pnpm；
 - ffmpeg 与 ffprobe；
-- Claude Code CLI；
+- Claude Code CLI，或可写工作区的 Codex / WorkBuddy / 千问等 CLI Agent；
 - Codex CLI。
 
 还需要为 Codex 和 Claude Code 配置可用的登录状态、模型账户或 API 代理。不要把 API Key 写入仓库。
@@ -190,6 +190,34 @@ require_visual_critic = true
 - 不要同时对同一运行目录启动多个 Harness 实例；
 - 启用美元预算时，各角色需填写可信的 `estimated_cost_usd`；
 - `require_visual_critic = true` 时，读图失败或 Critic 缺失会阻止合成。
+
+正式交付的动态质量配置：
+
+```toml
+[quality]
+max_freeze_seconds = 0.8
+check_raster_jitter = true
+delivery_render_concurrency = 1
+beat_tolerance_seconds = 0.12
+beat_tail_seconds = 0.5
+require_sfx_checks_when_cues_exist = true
+
+[alignment]
+require_word_alignment = false
+word_timestamps_file = "word-timestamps.json"
+```
+
+交付渲染固定单 Worker，避免 Canvas/WebGL 并发造成细碎闪抖。若有词级时间轴，可先导入：
+
+```powershell
+.\legal-motion.ps1 alignment-import --run "D:\output\本期视频" --file "D:\input\word-timestamps.json"
+```
+
+此时场景 Worker 必须提交重点出现时刻，系统检查它是否贴近旁白关键词，并生成锚点前/中/后三帧给视觉 Critic。没有词级时间轴时该门显示 `not_applicable`；可将 `require_word_alignment` 设为 `true` 强制正式项目必须提供。若运行目录含 `sfx-cues.json`，最终合成还会检查音效是否真的可听；没有音效设计时不强制添加。
+
+### 替换 Claude Worker
+
+`configs/worker-codex.toml` 可让 Codex 直接编写场景；`configs/worker-generic-cli.example.toml` 展示 WorkBuddy、千问或其他 CLI Agent 的接法。通用 Agent 必须能在指定场景目录中读写文件、接收提示文件并返回可靠退出码。配置的是适配接口，不代表仓库捆绑或代办第三方账户。
 
 命令行可临时覆盖参数：
 

@@ -1,5 +1,15 @@
 # Architecture
 
+The Worker seam is provider-neutral: Claude is the default, while writable Codex Workers and explicit generic CLI adapters can fill the same role.
+
+Production quality additions:
+
+- ffmpeg freeze detection enforces the configured 0.8-second ceiling, alongside the existing sampled-motion check.
+- Low-motion 30fps windows are checked for raster oscillation; delivery rendering defaults to concurrency 1.
+- Optional word timestamps bind visual beats to spoken anchors and produce before/anchor/after evidence for the Critic.
+- Optional `sfx-cues.json` triggers final-mix audibility analysis; productions without sound effects report `not_applicable`.
+- Style memory, licensed asset metadata and model-call metrics reuse production knowledge without cloning prior layouts.
+
 1. `direct` reads the complete SRT, asks a semantic Director for cue ranges, meaning, visual goals, grammar and approved copy, then rejects gaps, overlaps, invented copy and monotonous grammar. `plan-from-director` remains the reviewed-JSON import path.
 2. `prepare` creates isolated Remotion projects and transition workspaces, assigns a design system, shared background and Windows dependency junction.
 3. `run-scenes` asks each Worker to design `frame.md` and author code, then blocks rendering until fact and local-frame audits pass.

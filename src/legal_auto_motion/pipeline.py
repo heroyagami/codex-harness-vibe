@@ -12,6 +12,8 @@ from .facts import write_audit
 from .config import HarnessConfig, ModelRoute, config_for_run
 from .agent_adapters import build_invocation
 from .motion_gate import inspect_motion
+from .audio_gate import inspect_audio_mix
+from .beat_gate import load_aligned_words, render_beat_evidence, validate_beats
 from .style_memory import StyleMemory, memory_root
 from .asset_library import AssetLibrary, asset_root
 from .providers import codex_command, is_retryable_model_failure, read_manual_critique
@@ -147,6 +149,8 @@ def build_from_director(run_dir: Path, director_plan: Path) -> tuple[dict, dict]
             "visual_goal": source.get("visual_goal", ""),
             "grammar": source.get("grammar", ""),
             "section": source.get("section", "body"),
+            "scene_start_seconds": start,
+            "scene_end_seconds": end,
         }
     transitions = []
     hard_boundaries = {
@@ -281,9 +285,17 @@ def prepare(run_dir: Path) -> None:
             asset_library.materialize(selected, scene_dir / "public" / "library")
         prompt = scene_dir / "claude-scene-prompt.md"
         fact_prompt = _fact_prompt(contract)
+        alignment_note = ""
+        timestamps = run_dir / str(config.alignment.get("word_timestamps_file", "word-timestamps.json"))
+        if timestamps.exists():
+            alignment_note = (
+                "\n# 语义重点时间锚\n\n读取运行目录 word-timestamps.json，创建 artifacts/beats.json。"
+                "每项包含 time_seconds（全片绝对秒）、anchor（逐字存在于对齐文本）和 what（该时刻出现的视觉重点）。"
+                "重点须贴近对应词开始时间，并在本镜头结束前至少留0.5秒。\n"
+            )
         prompt_text = prompt.read_text(encoding="utf-8")
         if fact_prompt not in prompt_text:
-            prompt.write_text(prompt_text + fact_prompt, encoding="utf-8")
+            prompt.write_text(prompt_text + fact_prompt + alignment_note, encoding="utf-8")
     run_command(
         [
             sys.executable,
@@ -320,6 +332,36 @@ def audit_scene(scene_dir: Path) -> dict:
     }
 
 
+def _inspect_beats(scene_dir: Path, config: HarnessConfig) -> dict:
+    run_dir = scene_dir.parents[1]
+    timestamps = run_dir / str(config.alignment.get("word_timestamps_file", "word-timestamps.json"))
+    output = scene_dir / "artifacts" / "beat-gate.json"
+    if not timestamps.exists():
+        report = {
+            "status": "rejected" if bool(config.alignment.get("require_word_alignment", False)) else "not_applicable",
+            "reason": "word alignment is not available",
+        }
+    else:
+        beats_path = scene_dir / "artifacts" / "beats.json"
+        if not beats_path.exists():
+            report = {"status": "rejected", "problems": ["artifacts/beats.json is required when word alignment exists"]}
+        else:
+            contract = json.loads((scene_dir / "fact-contract.json").read_text(encoding="utf-8"))
+            beats_data = json.loads(beats_path.read_text(encoding="utf-8"))
+            beats = beats_data.get("beats", beats_data) if isinstance(beats_data, dict) else beats_data
+            report = validate_beats(
+                beats, load_aligned_words(timestamps),
+                scene_start=float(contract["scene_start_seconds"]),
+                scene_end=float(contract["scene_end_seconds"]),
+                tolerance=float(config.quality.get("beat_tolerance_seconds", 0.12)),
+                tail_seconds=float(config.quality.get("beat_tail_seconds", 0.5)),
+            )
+            report["scene_start_seconds"] = float(contract["scene_start_seconds"])
+    output.parent.mkdir(parents=True, exist_ok=True)
+    write_json(output, report)
+    return report
+
+
 def worker_prompt(revision: bool = False) -> str:
     if revision:
         return (
@@ -353,6 +395,15 @@ def scene_fingerprints(scene_dir: Path, config: HarnessConfig) -> tuple[str, str
         [config.route("critic").provider, config.route("critic").model, CRITIC_PROMPT_VERSION],
     )
     return authored, critic
+
+
+def _mark_authored_current(scene_dir: Path, scene_graph: StateGraph, config: HarnessConfig, *, role: str) -> None:
+    fingerprint, _ = scene_fingerprints(scene_dir, config)
+    scene_graph.complete(
+        "authored", fingerprint,
+        outputs=[scene_dir / "frame.md", scene_dir / "scenes" / "DefaultScene.tsx"],
+        metadata={"provider": config.route(role).provider, "model": config.route(role).model, "last_role": role},
+    )
 
 
 def _run_agent(
@@ -443,27 +494,54 @@ def _run_role(
         )
 
 
-def _render_scene(scene_dir: Path) -> dict:
+def _render_scene(scene_dir: Path, config: HarnessConfig | None = None) -> dict:
+    config = config or config_for_run(scene_dir.parents[1])
+    beats = _inspect_beats(scene_dir, config)
+    if beats["status"] == "rejected":
+        problems = beats.get("problems", [beats.get("reason", "beat timing rejected")])
+        raise RuntimeError(f"{scene_dir.name} failed beat gate: {'; '.join(problems)}")
     env = os.environ.copy()
     ffmpeg_dir = Path.home() / "bin"
     if (ffmpeg_dir / "ffprobe.exe").exists():
         env["PATH"] = f"{ffmpeg_dir}{os.pathsep}{env.get('PATH', '')}"
     pnpm = _find_pnpm()
     subprocess.run([pnpm, "run", "verify"], cwd=scene_dir, env=env, check=True)
-    render_env = env | {"REMOTION_OUTPUT": f"{scene_dir.name}.mov"}
+    render_env = env | {
+        "REMOTION_OUTPUT": f"{scene_dir.name}.mov",
+        "REMOTION_CONCURRENCY": str(config.quality.get("delivery_render_concurrency", 1)),
+    }
     subprocess.run([pnpm, "run", "remotion:render"], cwd=scene_dir, env=render_env, check=True)
     subprocess.run([pnpm, "run", "render:verify"], cwd=scene_dir, env=env, check=True)
+    render_beat_evidence(scene_dir / json.loads((scene_dir / "scene-metadata.json").read_text(encoding="utf-8"))["output_file"], beats, scene_dir / "artifacts" / "beat-evidence")
     visual = inspect_render(scene_dir)
     if visual["status"] != "accepted":
         problems = "; ".join(visual.get("problems", [])) or "visual gate rejected representative frames"
         raise RuntimeError(f"{scene_dir.name} failed visual gate: {problems}")
-    motion = inspect_motion(scene_dir)
+    motion = inspect_motion(
+        scene_dir,
+        max_freeze_seconds=float(config.quality.get("max_freeze_seconds", 0.8)),
+        check_raster_jitter=bool(config.quality.get("check_raster_jitter", True)),
+    )
     if motion["status"] != "accepted":
         problems = "; ".join(motion.get("problems", [])) or "motion gate rejected sampled animation"
         raise RuntimeError(f"{scene_dir.name} failed motion gate: {problems}")
     visual["motion_gate"] = motion
     subprocess.run([pnpm, "run", "transition-handles:render"], cwd=scene_dir, env=env, check=True)
     return visual
+
+
+def _verify_authored_scene(scene_dir: Path, timeout: int) -> dict:
+    result = subprocess.run(
+        [_find_pnpm(), "run", "verify"], cwd=scene_dir, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=timeout, check=False,
+    )
+    report = {
+        "status": "accepted" if result.returncode == 0 else "rejected",
+        "returncode": result.returncode,
+        "output": ((result.stdout or "") + "\n" + (result.stderr or ""))[-12000:],
+    }
+    write_json(scene_dir / "artifacts" / "technical-verify.json", report)
+    return report
 
 
 def _validate_creative_critique(report: dict) -> dict:
@@ -519,7 +597,7 @@ def _creative_critique(scene_dir: Path, timeout: int, *, config: HarnessConfig |
     }
     write_json(schema_path, schema)
     prompt = (
-        "你是严格的短视频视觉审查员。前三张附件依次是 early、mid、late 帧，第四张是每0.5秒采样的动画联系表。"
+        "你是严格的短视频视觉审查员。前三张附件依次是 early、mid、late 帧，第四张是每0.5秒采样的动画联系表；若有第五张，它是语义重点前一帧/锚点帧/后一帧证据。"
         "结合当前目录 fact-contract.json 与 frame.md，只依据你直接看到的画面，按0到2分评价："
         "semantic_clarity、visual_thesis、information_density、composition、motion_purpose、rhythm、continuity、caption_safety。"
         "前三张图必须各写一条具体视觉观察；同时根据动画联系表和 artifacts/motion-gate/motion-gate.json 判断进入、变化、停顿和节奏，不能仅凭三张静帧猜动画。"
@@ -547,6 +625,9 @@ def _creative_critique(scene_dir: Path, timeout: int, *, config: HarnessConfig |
         )
     images = [scene_dir / "artifacts" / "visual-gate" / f"{label}-review.jpg" for label in ("early", "mid", "late")]
     images.append(scene_dir / "artifacts" / "motion-gate" / "motion-contact-sheet.jpg")
+    beat_sheet = scene_dir / "artifacts" / "beat-evidence" / "beat-anchor-contact-sheet.jpg"
+    if beat_sheet.exists():
+        images.append(beat_sheet)
     if not all(image.exists() for image in images):
         raise RuntimeError("Visual critic cannot run because review images are missing")
     command = codex_command(route, schema_path, response_path, images)
@@ -584,7 +665,7 @@ def _render_with_visual_revisions(
     motion_report_path = scene_dir / "artifacts" / "motion-gate" / "motion-gate.json"
     for attempt in range(max_revisions + 1):
         try:
-            return _render_scene(scene_dir)
+            return _render_scene(scene_dir, config=config)
         except RuntimeError as exc:
             visual_failure = "failed visual gate" in str(exc)
             motion_failure = "failed motion gate" in str(exc)
@@ -671,16 +752,90 @@ def run_scene(
             raise RuntimeError(f"{scene_dir.name} failed fact audit after {max_fact_revisions} revisions")
         write_json(state_path, {"status": "fact_revision", "attempt": revision + 1, "report": report})
         _run_role(scene_dir, worker_prompt(revision=True), timeout, config=config, role="revision_worker", state_graph=state_graph)
-    write_json(state_path, {"status": "rendering", "fact_audit": "accepted"})
-    visual = _render_with_visual_revisions(
-        scene_dir, timeout, max_creative_revisions, config=config, state_graph=state_graph,
-    )
+        _mark_authored_current(scene_dir, scene_graph, config, role="revision_worker")
+    for technical_revision in range(max_fact_revisions + 1):
+        technical = _verify_authored_scene(scene_dir, timeout)
+        if technical["status"] == "accepted":
+            break
+        if technical_revision >= max_fact_revisions:
+            raise RuntimeError(f"{scene_dir.name} failed technical verification after {max_fact_revisions} revisions")
+        write_json(state_path, {"status": "technical_revision", "attempt": technical_revision + 1})
+        _run_role(
+            scene_dir,
+            "读取 artifacts/technical-verify.json，修复其中全部编译、Lint、Composition或前景布局错误。"
+            "不得改变事实契约、镜头时长或语义目标。修复后运行pnpm run verify，不要渲染。",
+            timeout, config=config, role="revision_worker", state_graph=state_graph,
+        )
+        _mark_authored_current(scene_dir, scene_graph, config, role="revision_worker")
+        if audit_scene(scene_dir)["status"] != "accepted":
+            raise RuntimeError(f"{scene_dir.name} technical revision broke fact/timing contract")
     render_fingerprint = input_hash([scene_dir / "scenes" / "DefaultScene.tsx", metadata_path])
-    scene_graph.complete("rendered", render_fingerprint, outputs=[prior_video])
-    scene_graph.complete(
-        "visual_passed", input_hash([prior_video]),
-        outputs=[scene_dir / "artifacts" / "visual-gate" / "visual-gate.json"],
+    visual_path = scene_dir / "artifacts" / "visual-gate" / "visual-gate.json"
+    motion_path = scene_dir / "artifacts" / "motion-gate" / "motion-gate.json"
+    reusable_render = (
+        prior_video.exists() and scene_graph.is_current("rendered", render_fingerprint)
+        and visual_path.exists() and motion_path.exists()
+        and json.loads(visual_path.read_text(encoding="utf-8")).get("status") == "accepted"
+        and json.loads(motion_path.read_text(encoding="utf-8")).get("status") == "accepted"
     )
+    if reusable_render:
+        write_json(state_path, {"status": "resuming_at_creative_review", "scene_id": scene_dir.name})
+        visual = json.loads(visual_path.read_text(encoding="utf-8"))
+        visual["motion_gate"] = json.loads(motion_path.read_text(encoding="utf-8"))
+    else:
+        write_json(state_path, {"status": "rendering", "fact_audit": "accepted"})
+        visual = _render_with_visual_revisions(
+            scene_dir, timeout, max_creative_revisions, config=config, state_graph=state_graph,
+        )
+        scene_graph.complete("rendered", render_fingerprint, outputs=[prior_video])
+        scene_graph.complete("visual_passed", input_hash([prior_video]), outputs=[visual_path])
+        scene_graph.complete(
+            "motion_passed", input_hash([prior_video]),
+            outputs=[motion_path, scene_dir / "artifacts" / "motion-gate" / "motion-review.mp4"],
+        )
+    critique = None
+    if critic_enabled:
+        for creative_attempt in range(max_creative_revisions + 1):
+            write_json(state_path, {"status": "creative_review", "attempt": creative_attempt + 1})
+            critique = _creative_critique(scene_dir, timeout, config=config, state_graph=state_graph)
+            _remember_critique(scene_dir, critique, config)
+            if critique["verdict"] == "pass":
+                scene_graph.complete(
+                    "critic_passed", scene_fingerprints(scene_dir, config)[1],
+                    outputs=[scene_dir / "artifacts" / "creative-critique.json"],
+                    metadata={"provider": config.route("critic").provider, "model": config.route("critic").model},
+                )
+                break
+            if creative_attempt >= max_creative_revisions:
+                write_json(state_path, {"status": "creative_rejected", "critique": critique})
+                raise RuntimeError(f"{scene_dir.name} failed creative review")
+            write_json(state_path, {"status": "creative_revision", "attempt": creative_attempt + 1, "critique": critique})
+            _run_role(scene_dir, _creative_revision_prompt(), timeout, config=config, role="revision_worker", state_graph=state_graph)
+            _mark_authored_current(scene_dir, scene_graph, config, role="revision_worker")
+            report = audit_scene(scene_dir)
+            if report["status"] != "accepted":
+                _run_role(scene_dir, worker_prompt(revision=True), timeout, config=config, role="revision_worker", state_graph=state_graph)
+                _mark_authored_current(scene_dir, scene_graph, config, role="revision_worker")
+                report = audit_scene(scene_dir)
+            if report["status"] != "accepted":
+                raise RuntimeError(f"{scene_dir.name} creative revision broke fact/timing contract")
+            visual = _render_with_visual_revisions(
+                scene_dir, timeout, max_creative_revisions, config=config, state_graph=state_graph,
+            )
+            render_fingerprint = input_hash([scene_dir / "scenes" / "DefaultScene.tsx", metadata_path])
+            scene_graph.complete("rendered", render_fingerprint, outputs=[prior_video])
+            scene_graph.complete("visual_passed", input_hash([prior_video]), outputs=[visual_path])
+            scene_graph.complete(
+                "motion_passed", input_hash([prior_video]),
+                outputs=[motion_path, scene_dir / "artifacts" / "motion-gate" / "motion-review.mp4"],
+            )
+    result = {
+        "status": "rendered", "scene_id": scene_dir.name,
+        "video": str(prior_video), "fact_audit": "accepted",
+        "visual_gate": visual, "creative_critique": critique,
+    }
+    write_json(state_path, result)
+    return result
 
 
 def _remember_critique(scene_dir: Path, critique: dict, config: HarnessConfig) -> None:
@@ -697,51 +852,6 @@ def _remember_critique(scene_dir: Path, critique: dict, config: HarnessConfig) -
         revision=[str(value) for value in critique.get("revision", [])],
         source_run=scene_dir.parents[1].name,
     )
-    scene_graph.complete(
-        "motion_passed", input_hash([prior_video]),
-        outputs=[
-            scene_dir / "artifacts" / "motion-gate" / "motion-gate.json",
-            scene_dir / "artifacts" / "motion-gate" / "motion-review.mp4",
-        ],
-    )
-    critique = None
-    if critic_enabled:
-        for creative_attempt in range(max_creative_revisions + 1):
-            write_json(state_path, {"status": "creative_review", "attempt": creative_attempt + 1})
-            critique = _creative_critique(scene_dir, timeout, config=config, state_graph=state_graph)
-            _remember_critique(scene_dir, critique, config)
-            if critique["verdict"] == "pass":
-                scene_graph.complete(
-                    "critic_passed",
-                    scene_fingerprints(scene_dir, config)[1],
-                    outputs=[scene_dir / "artifacts" / "creative-critique.json"],
-                    metadata={"provider": config.route("critic").provider, "model": config.route("critic").model},
-                )
-                break
-            if creative_attempt >= max_creative_revisions:
-                write_json(state_path, {"status": "creative_rejected", "critique": critique})
-                raise RuntimeError(f"{scene_dir.name} failed creative review")
-            write_json(state_path, {"status": "creative_revision", "attempt": creative_attempt + 1, "critique": critique})
-            _run_role(scene_dir, _creative_revision_prompt(), timeout, config=config, role="revision_worker", state_graph=state_graph)
-            report = audit_scene(scene_dir)
-            if report["status"] != "accepted":
-                _run_role(scene_dir, worker_prompt(revision=True), timeout, config=config, role="revision_worker", state_graph=state_graph)
-                report = audit_scene(scene_dir)
-            if report["status"] != "accepted":
-                raise RuntimeError(f"{scene_dir.name} creative revision broke fact/timing contract")
-            visual = _render_with_visual_revisions(
-                scene_dir, timeout, max_creative_revisions, config=config, state_graph=state_graph,
-            )
-    result = {
-        "status": "rendered",
-        "scene_id": scene_dir.name,
-        "video": str(scene_dir / f"{scene_dir.name}.mov"),
-        "fact_audit": "accepted",
-        "visual_gate": visual,
-        "creative_critique": critique,
-    }
-    write_json(state_path, result)
-    return result
 
 
 def run_scenes(
@@ -909,6 +1019,15 @@ def assemble(run_dir: Path, output: Path | None = None) -> dict:
         cwd=run_dir,
         check=True,
     )
+    cues_path = run_dir / "sfx-cues.json"
+    quality = config_for_run(run_dir).quality
+    if cues_path.exists() and bool(quality.get("require_sfx_checks_when_cues_exist", True)):
+        audio_gate = inspect_audio_mix(output, audio, cues_path, run_dir / "reports" / "audio-gate.json")
+        if audio_gate["status"] != "accepted":
+            raise RuntimeError("Final audio mix gate rejected: " + "; ".join(audio_gate.get("problems", [])))
+    else:
+        audio_gate = {"status": "not_applicable", "reason": "no sfx-cues.json"}
+        write_json(run_dir / "reports" / "audio-gate.json", audio_gate)
     probe = subprocess.run(
         [_find_media_tool("ffprobe"), "-v", "error", "-show_entries", "format=duration,size", "-show_entries", "stream=codec_name,width,height,r_frame_rate", "-of", "json", str(output)],
         capture_output=True,
@@ -920,6 +1039,7 @@ def assemble(run_dir: Path, output: Path | None = None) -> dict:
     report = {
         "status": "complete", "output": str(output), "probe": json.loads(probe.stdout),
         "production_metrics": metrics["summary"],
+        "audio_gate": audio_gate,
     }
     write_json(run_dir / "completion-report.json", report)
     StateGraph(run_dir / "harness-state.json").complete(

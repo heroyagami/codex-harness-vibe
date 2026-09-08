@@ -54,3 +54,15 @@ max_examples_per_grammar = 3
 enabled = true
 library_path = ""
 max_assets_per_scene = 12
+
+[quality]
+max_freeze_seconds = 0.8
+check_raster_jitter = true
+delivery_render_concurrency = 1
+beat_tolerance_seconds = 0.12
+beat_tail_seconds = 0.5
+require_sfx_checks_when_cues_exist = true
+
+[alignment]
+require_word_alignment = false
+word_timestamps_file = "word-timestamps.json"
