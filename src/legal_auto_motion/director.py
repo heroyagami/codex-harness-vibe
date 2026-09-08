@@ -72,9 +72,9 @@ def _director_prompt(cues: list[Cue]) -> str:
 - subject写本镜头唯一的视觉主体，例如“付款关系”“合同证据”“争议金额”，不要写空泛的“画面”。
 - grammar从以下选择，连续镜头尽量不重复：{GRAMMARS}。
 - section用于论证章节分组，例如hook/facts/conflict/rule/evidence/conclusion。
-- energy为0到1，表示镜头视觉能量；高潮、反转、关键结论更高，解释与留白更低。不要让所有镜头都处于同一能量带。
-- density从low/medium/high选择，表示画面信息密度。连续高密度镜头后应主动安排低密度或visual_rest。
-- visual_reset表示该镜头是否应明显改变主体位置、构图、尺度或视觉语法，让观众重新获得注意力。
+- energy为0到1，表示镜头视觉能量；高潮、反转、关键结论更高，解释与留白更低。五个及以上镜头时，整片能量必须有明显高低差，不要全部挤在同一能量带。
+- density从low/medium/high选择，表示画面信息密度。high不得连续出现4个镜头；高密度之后应主动安排medium/low或visual_rest。
+- visual_reset表示该镜头是否应明显改变主体位置、构图、尺度或视觉语法，让观众重新获得注意力。较长视频不要连续7个镜头都没有视觉重置。
 - contrast_with_previous从soft/medium/strong选择。第一镜头用strong。
 - transition_intent从{', '.join(TRANSITION_INTENTS)}选择。默认优先hard_cut；只有语义连续且确有叙事理由时才选carry/flow/temporal/settle。观点反转或强对比选contrast。
 - 不要为了“多样性”机械轮换语法；语法必须服务本段含义。
@@ -118,6 +118,8 @@ def director_fingerprint(run_dir: Path, config: HarnessConfig | None = None) -> 
             DIRECTOR_SCHEMA_VERSION,
             GRAMMARS,
             ",".join(TRANSITION_INTENTS),
+            json.dumps(config.video, sort_keys=True, ensure_ascii=False),
+            json.dumps(config.safe_zone, sort_keys=True, ensure_ascii=False),
         ],
     )
 
@@ -237,11 +239,18 @@ def validate_and_normalize_director(raw: dict, cues: list[Cue]) -> dict:
     first_minute_grammars = {scene["grammar"] for scene in normalized if scene["start"] < cues[0].start + 60}
     if duration >= 60 and len(first_minute_grammars) < 3:
         raise ValueError("Director plan needs at least three visual grammars in the first minute")
+    energies = [scene["energy"] for scene in normalized]
+    if len(energies) >= 5 and max(energies) - min(energies) < 0.20:
+        raise ValueError("Director plan energy curve is too flat")
     high_density_run = 0
+    reset_gap = 0
     for scene in normalized:
         high_density_run = high_density_run + 1 if scene["density"] == "high" else 0
-        if high_density_run >= 4 and not scene["visual_reset"]:
-            raise ValueError("Director plan contains four high-density scenes without a visual reset")
+        if high_density_run >= 4:
+            raise ValueError("Director plan contains four consecutive high-density scenes")
+        reset_gap = 0 if scene["visual_reset"] else reset_gap + 1
+        if len(normalized) >= 7 and reset_gap >= 7:
+            raise ValueError("Director plan contains seven scenes without a visual reset")
     return {
         "version": DIRECTOR_SCHEMA_VERSION,
         "prompt_version": DIRECTOR_PROMPT_VERSION,
