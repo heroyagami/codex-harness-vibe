@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+SUPPORTED_RENDER_PROFILE = (1080, 1440, 30)
+
 DEFAULT_CONFIG = {
     "models": {
         "director": {"provider": "codex_text", "model": "", "fallback_model": "", "fallback_provider": "", "command": [], "estimated_cost_usd": 0.0},
@@ -34,6 +36,20 @@ DEFAULT_CONFIG = {
         "beat_tail_seconds": 0.5, "require_sfx_checks_when_cues_exist": True,
     },
     "alignment": {"require_word_alignment": False, "word_timestamps_file": "word-timestamps.json"},
+    "video": {
+        "profile": "compact_3_4",
+        "width": 1080,
+        "height": 1440,
+        "fps": 30,
+    },
+    "safe_zone": {
+        "left": 110,
+        "right": 970,
+        "top": 145,
+        "content_bottom": 1000,
+        "subtitle_bottom": 1295,
+        "edge_guard": 60,
+    },
 }
 
 
@@ -57,6 +73,8 @@ class HarnessConfig:
     assets: dict[str, str | int | bool] = field(default_factory=dict)
     quality: dict[str, str | int | float | bool] = field(default_factory=dict)
     alignment: dict[str, str | bool] = field(default_factory=dict)
+    video: dict[str, int | str] = field(default_factory=dict)
+    safe_zone: dict[str, int] = field(default_factory=dict)
 
     def route(self, role: str) -> ModelRoute:
         if role not in self.models:
@@ -72,6 +90,34 @@ def _merge(base: dict, override: dict) -> dict:
         else:
             result[key] = value
     return result
+
+
+def _validate_video_and_safe_zone(merged: dict) -> None:
+    video = merged["video"]
+    safe = merged["safe_zone"]
+    for field_name in ("width", "height", "fps"):
+        value = video.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"video.{field_name} must be a positive integer")
+    width = int(video["width"])
+    height = int(video["height"])
+    fps = int(video["fps"])
+    if (width, height, fps) != SUPPORTED_RENDER_PROFILE:
+        raise ValueError(
+            "Current auto-vibe vendor renderer supports only 1080x1440@30; "
+            "migrate the vendor/runtime profile before selecting another canvas"
+        )
+    required = ("left", "right", "top", "content_bottom", "subtitle_bottom", "edge_guard")
+    for field_name in required:
+        value = safe.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"safe_zone.{field_name} must be a non-negative integer")
+    if not 0 <= safe["left"] < safe["right"] <= width:
+        raise ValueError("safe_zone left/right must fit inside video.width")
+    if not 0 <= safe["top"] < safe["content_bottom"] < safe["subtitle_bottom"] <= height:
+        raise ValueError("safe_zone vertical bounds must fit inside video.height")
+    if safe["edge_guard"] * 2 >= width:
+        raise ValueError("safe_zone.edge_guard is too large for video.width")
 
 
 def load_config(path: Path | None = None) -> HarnessConfig:
@@ -102,6 +148,7 @@ def load_config(path: Path | None = None) -> HarnessConfig:
         missing = [role for role, route in routes.items() if route.provider != "disabled" and route.estimated_cost_usd <= 0]
         if missing:
             raise ValueError(f"Cost budget requires estimated_cost_usd for: {', '.join(missing)}")
+    _validate_video_and_safe_zone(merged)
     return HarnessConfig(
         models=routes,
         budget=merged["budget"],
@@ -111,6 +158,8 @@ def load_config(path: Path | None = None) -> HarnessConfig:
         assets=merged["assets"],
         quality=merged["quality"],
         alignment=merged["alignment"],
+        video=merged["video"],
+        safe_zone=merged["safe_zone"],
     )
 
 
