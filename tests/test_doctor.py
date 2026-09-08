@@ -11,7 +11,7 @@ class DoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "config.toml"
             path.write_text(
-                '[models.scene_worker]\nprovider="generic_cli"\ncommand=["workbuddy", "run"]\n'
+                '[models.scene_worker]\nprovider="generic_cli"\ncommand=["workbuddy", "run", "--prompt", "{prompt_file}"]\n'
                 '[models.revision_worker]\nprovider="codex_worker"\n',
                 encoding="utf-8",
             )
