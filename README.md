@@ -191,6 +191,25 @@ require_visual_critic = true
 - 启用美元预算时，各角色需填写可信的 `estimated_cost_usd`；
 - `require_visual_critic = true` 时，读图失败或 Critic 缺失会阻止合成。
 
+### Token 与耗时估算
+
+Harness 的 token 消耗主要来自 Director、场景 Worker、Critic 和 Revision Worker，Remotion/ffmpeg 本地渲染本身不消耗模型 token。供应商和 CLI 并不总是返回可记录的 token 数，因此下列数字是容量规划估算，不是账单：
+
+- 4 个中短镜头，首次生成且基本无需返工：约 `20万–60万 token`；
+- 4 个镜头，每个平均经过一次 Critic 返工：约 `40万–120万 token`；
+- 长上下文、反复中断、技术失败或多轮审美返工，会轻易超过 `150万 token`；
+- 一条 2–3 分钟、约 20–35 个镜头的视频，建议先按 `300万–1000万 token` 做保守容量规划，再用首批 3–4 个镜头的实际台账校准。
+
+2026-09 的 30 秒验收样本属于异常高消耗案例：前 4 个镜头累计记录 69 次模型调用，其中包含旧版 Claude 长时间无写入、额度中断、导演版本升级后的失效重跑，以及多轮 Critic/Revision。由于当时未保存供应商 token usage，只能估算约 `150万–450万 token`，不能当作正常四镜头基准。
+
+这些数字不等于 Codex 桌面任务界面显示的总 token。桌面任务还可能计算长对话历史、工具输出和压缩上下文；README 中的估算只针对 Harness 调用的模型工作量。可运行 `metrics` 查看每个角色的调用次数、失败次数、累计执行时间和配置成本：
+
+```powershell
+.\legal-motion.ps1 metrics --run "D:\output\本期视频"
+```
+
+控制消耗的优先顺序：先用 1 个代表镜头验证导演方向；限制 `max_revision_attempts`；修复技术错误后再恢复；保留原运行目录断点续跑；不要并行启动两个 Harness；确认模型真的不可用后再切换供应商，避免重复上下文。
+
 正式交付的动态质量配置：
 
 ```toml
