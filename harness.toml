@@ -39,3 +39,17 @@ scene_concurrency = 3
 transition_concurrency = 2
 timeout_seconds = 900
 require_visual_critic = true
+
+[video]
+profile = "compact_3_4"
+width = 1080
+height = 1440
+fps = 30
+
+[safe_zone]
+left = 110
+right = 970
+top = 145
+content_bottom = 1000
+subtitle_bottom = 1295
+edge_guard = 60
