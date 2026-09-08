@@ -133,6 +133,10 @@ def _validate_context(merged: dict) -> None:
     for field_name in ("require_scene_isolation", "forbid_sibling_scene_reads"):
         if not isinstance(context.get(field_name), bool):
             raise ValueError(f"context.{field_name} must be boolean")
+    if context["require_scene_isolation"] is not True:
+        raise ValueError("context.require_scene_isolation is a mandatory production invariant")
+    if context["forbid_sibling_scene_reads"] is not True:
+        raise ValueError("context.forbid_sibling_scene_reads is a mandatory production invariant")
     for field_name in ("max_prompt_chars", "max_neighbor_summary_chars", "max_style_memory_chars"):
         value = context.get(field_name)
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
