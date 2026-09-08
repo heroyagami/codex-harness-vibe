@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from .config import config_for_run
+from .context_policy import build_boundary_context
 
 
 RENDERED_TRANSITION_INTENTS = {"carry", "flow", "temporal", "settle"}
@@ -61,8 +62,9 @@ def apply_director_overlays(run_dir: Path, director_plan: Path | None = None) ->
 
     config = config_for_run(run_dir)
     safe_zone = {key: int(value) for key, value in config.safe_zone.items()}
-    for index, source in enumerate(source_scenes, start=1):
-        scene_id = f"scene-{index:03d}"
+    neighbor_limit = int(config.context.get("max_neighbor_summary_chars", 700))
+    for index, source in enumerate(source_scenes):
+        scene_id = f"scene-{index + 1:03d}"
         contract = contracts[scene_id]
         contract.update(
             {
@@ -76,6 +78,7 @@ def apply_director_overlays(run_dir: Path, director_plan: Path | None = None) ->
                 "transition_intent": source.get("transition_intent", "hard_cut"),
                 "safe_zone": safe_zone,
                 "video_profile": config.video.get("profile", "compact_3_4"),
+                "boundary_context": build_boundary_context(source_scenes, index, max_chars=neighbor_limit),
             }
         )
 
@@ -97,7 +100,7 @@ def apply_director_overlays(run_dir: Path, director_plan: Path | None = None) ->
             transitions.append(_rendered_transition(left_plan, right_plan, intent))
 
     plan["transitions"] = transitions
-    plan["director_overlay_version"] = "director-overlay-v1"
+    plan["director_overlay_version"] = "director-overlay-v2-context-boundary"
     _write_json(plan_path, plan)
     _write_json(contracts_path, contracts)
     return {

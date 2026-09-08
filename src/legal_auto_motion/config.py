@@ -28,7 +28,14 @@ DEFAULT_CONFIG = {
         "timeout_seconds": 900,
         "require_visual_critic": True,
     },
-    "memory": {"enabled": True, "path": "", "max_examples_per_grammar": 3},
+    "context": {
+        "require_scene_isolation": True,
+        "forbid_sibling_scene_reads": True,
+        "max_prompt_chars": 18000,
+        "max_neighbor_summary_chars": 700,
+        "max_style_memory_chars": 3500,
+    },
+    "memory": {"enabled": True, "path": "", "max_examples_per_grammar": 2},
     "assets": {"enabled": True, "library_path": "", "max_assets_per_scene": 12},
     "quality": {
         "max_freeze_seconds": 0.8, "check_raster_jitter": True,
@@ -69,6 +76,7 @@ class HarnessConfig:
     budget: dict[str, int | float] = field(default_factory=dict)
     production: dict[str, int | bool] = field(default_factory=dict)
     source: Path | None = None
+    context: dict[str, int | bool] = field(default_factory=dict)
     memory: dict[str, str | int | bool] = field(default_factory=dict)
     assets: dict[str, str | int | bool] = field(default_factory=dict)
     quality: dict[str, str | int | float | bool] = field(default_factory=dict)
@@ -120,6 +128,25 @@ def _validate_video_and_safe_zone(merged: dict) -> None:
         raise ValueError("safe_zone.edge_guard is too large for video.width")
 
 
+def _validate_context(merged: dict) -> None:
+    context = merged["context"]
+    for field_name in ("require_scene_isolation", "forbid_sibling_scene_reads"):
+        if not isinstance(context.get(field_name), bool):
+            raise ValueError(f"context.{field_name} must be boolean")
+    if context["require_scene_isolation"] is not True:
+        raise ValueError("context.require_scene_isolation is a mandatory production invariant")
+    if context["forbid_sibling_scene_reads"] is not True:
+        raise ValueError("context.forbid_sibling_scene_reads is a mandatory production invariant")
+    for field_name in ("max_prompt_chars", "max_neighbor_summary_chars", "max_style_memory_chars"):
+        value = context.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"context.{field_name} must be a positive integer")
+    if context["max_style_memory_chars"] >= context["max_prompt_chars"]:
+        raise ValueError("context.max_style_memory_chars must be smaller than context.max_prompt_chars")
+    if context["max_neighbor_summary_chars"] * 2 >= context["max_prompt_chars"]:
+        raise ValueError("context neighbor summaries leave too little prompt budget")
+
+
 def load_config(path: Path | None = None) -> HarnessConfig:
     raw = {}
     if path is not None:
@@ -144,16 +171,22 @@ def load_config(path: Path | None = None) -> HarnessConfig:
             raise ValueError(f"models.{role}.provider cannot be empty")
         if route.provider == "generic_cli" and not route.command:
             raise ValueError(f"models.{role}.command is required for generic_cli")
+        if route.provider == "generic_cli" and role in {"scene_worker", "revision_worker"}:
+            joined = " ".join(route.command)
+            if "{prompt_file}" not in joined:
+                raise ValueError(f"models.{role}.command must use {{prompt_file}} for isolated scene prompts")
     if float(merged["budget"].get("max_total_cost_usd", 0.0)) > 0:
         missing = [role for role, route in routes.items() if route.provider != "disabled" and route.estimated_cost_usd <= 0]
         if missing:
             raise ValueError(f"Cost budget requires estimated_cost_usd for: {', '.join(missing)}")
+    _validate_context(merged)
     _validate_video_and_safe_zone(merged)
     return HarnessConfig(
         models=routes,
         budget=merged["budget"],
         production=merged["production"],
         source=path,
+        context=merged["context"],
         memory=merged["memory"],
         assets=merged["assets"],
         quality=merged["quality"],
