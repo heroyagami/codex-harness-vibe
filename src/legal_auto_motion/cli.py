@@ -10,10 +10,11 @@ from .pipeline import (
     assemble, audit_scene, build_from_director, init_run, prepare, reset_directed_outputs,
     run_scenes, run_transitions, scene_fingerprints, sync_run_inputs,
 )
-from .director import direct
+from .director import direct, director_fingerprint
+from .director_overlay import apply_director_overlays
 from .sequence_review import build_sequence_review
 from .config import config_for_run
-from .state import StateGraph, input_hash
+from .state import StateGraph
 from .doctor import doctor as run_doctor
 
 
@@ -99,16 +100,14 @@ def main() -> None:
                 args.creative_revisions if args.creative_revisions is not None
                 else int(config.budget["max_revision_attempts"])
             )
-            directed_fingerprint = input_hash(
-                [run_dir / "transcription.srt"],
-                [config.route("director").provider, config.route("director").model],
-            )
+            directed_fingerprint = director_fingerprint(run_dir, config)
             graph = StateGraph(run_dir / "harness-state.json")
             if (run_dir / "scene-plan.json").exists() and not graph.is_current("directed", directed_fingerprint):
                 reset_directed_outputs(run_dir)
             if not (run_dir / "scene-plan.json").exists():
                 direct(run_dir, timeout=timeout)
                 build_from_director(run_dir, run_dir / "director-plan.json")
+                apply_director_overlays(run_dir)
             state_path = run_dir / "run-state.json"
             state = json.loads(state_path.read_text(encoding="utf-8"))
             if state.get("status") != "prepared":
@@ -155,10 +154,15 @@ def main() -> None:
                     raise SystemExit(2)
             print(json.dumps(assemble(run_dir), ensure_ascii=False, indent=2))
         elif args.command == "plan-from-director":
-            build_from_director(args.run.resolve(), args.director_plan.resolve())
+            run_dir = args.run.resolve()
+            director_plan = args.director_plan.resolve()
+            build_from_director(run_dir, director_plan)
+            apply_director_overlays(run_dir, director_plan)
         elif args.command == "direct":
-            result = direct(args.run.resolve(), timeout=args.timeout)
-            build_from_director(args.run.resolve(), args.run.resolve() / "director-plan.json")
+            run_dir = args.run.resolve()
+            result = direct(run_dir, timeout=args.timeout)
+            build_from_director(run_dir, run_dir / "director-plan.json")
+            apply_director_overlays(run_dir)
             print(json.dumps(result, ensure_ascii=False, indent=2))
         elif args.command == "prepare":
             prepare(args.run.resolve())
