@@ -12,6 +12,9 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.route("director").provider, "codex_text")
         command = claude_command("claude", config.route("scene_worker"))
         self.assertNotIn("--model", command)
+        self.assertEqual(config.video["width"], 1080)
+        self.assertEqual(config.video["height"], 1440)
+        self.assertEqual(config.safe_zone["left"], 110)
 
     def test_explicit_model_and_fallback_are_loaded(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -29,6 +32,17 @@ class ConfigTests(unittest.TestCase):
             path = Path(folder) / "harness.toml"
             path.write_text("[budget]\nmax_total_cost_usd=1.0\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "estimated_cost_usd"):
+                load_config(path)
+
+    def test_safe_zone_must_fit_canvas(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "harness.toml"
+            path.write_text(
+                "[video]\nwidth=1080\nheight=1440\nfps=30\n"
+                "[safe_zone]\nleft=100\nright=1200\ntop=100\ncontent_bottom=1000\nsubtitle_bottom=1300\nedge_guard=60\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "left/right"):
                 load_config(path)
 
 
