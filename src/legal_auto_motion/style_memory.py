@@ -51,21 +51,18 @@ def _lesson_key(grammar: str, visual_goal: str, problems: list[str], revision: l
 
 
 def memory_quality(record: dict) -> float:
-    """Score a memory lesson for retrieval, not artistic truth.
-
-    Good-scene lessons reward high Critic scores and few revisions. Bad-scene
-    lessons reward specific problems plus actionable repair guidance. Both decay
-    slowly so recent evidence wins without instantly erasing older experience.
-    """
+    """Score a memory lesson for retrieval, not artistic truth."""
     _, normalized_score = _score_total(dict(record.get("scores", {})))
     problems = [str(value) for value in record.get("problems", []) if str(value).strip()]
     revisions = [str(value) for value in record.get("revision", []) if str(value).strip()]
     decay = _age_decay(float(record.get("recorded_at", time.time())))
     verdict = str(record.get("verdict", "revise"))
-    revision_count = max(0, int(record.get("revision_count", 0) or 0))
+    revision_count = record.get("revision_count")
 
     if verdict == "pass":
-        zero_revision_bonus = 0.16 if revision_count == 0 else max(0.0, 0.12 - revision_count * 0.04)
+        zero_revision_bonus = 0.0
+        if isinstance(revision_count, int):
+            zero_revision_bonus = 0.16 if revision_count == 0 else max(0.0, 0.12 - revision_count * 0.04)
         specificity = min(0.08, len(str(record.get("visual_goal", ""))) / 800.0)
         raw = 0.68 * normalized_score + zero_revision_bonus + specificity
     else:
@@ -87,7 +84,7 @@ class StyleMemory:
     def record(
         self, *, scene_id: str, grammar: str, visual_goal: str, verdict: str,
         scores: dict, problems: list[str], revision: list[str], source_run: str = "",
-        revision_count: int = 0,
+        revision_count: int | None = None,
     ) -> Path:
         # Memory intentionally stores critique lessons, never frame.md, source code,
         # prompts, conversation transcripts or complete rendered-scene descriptions.
@@ -104,10 +101,11 @@ class StyleMemory:
             "problems": clipped_problems,
             "revision": clipped_revision,
             "source_run": source_run,
-            "revision_count": max(0, int(revision_count)),
             "recorded_at": now,
             "lesson_key": _lesson_key(grammar, visual_goal, clipped_problems, clipped_revision),
         }
+        if revision_count is not None:
+            record["revision_count"] = max(0, int(revision_count))
         record["quality_score"] = memory_quality(record)
         folder = "good-scenes" if verdict == "pass" else "bad-scenes"
         destination = self.root / folder
@@ -142,7 +140,7 @@ class StyleMemory:
                 continue
             if grammar and record.get("grammar") != grammar:
                 continue
-            record.setdefault("quality_score", memory_quality(record))
+            record["quality_score"] = memory_quality(record)
             records.append((path, record))
         records.sort(
             key=lambda item: (float(item[1].get("quality_score", 0.0)), float(item[1].get("recorded_at", 0.0))),
@@ -151,11 +149,7 @@ class StyleMemory:
         return records
 
     def prune(self, *, grammar: str = "", max_per_bucket: int = 40, stale_days: int = 365) -> dict:
-        """Retire weak/stale lessons and cap each grammar bucket.
-
-        We intentionally keep a generous cap. Pruning prevents memory growth and
-        template dominance; it is not a substitute for benchmark evidence.
-        """
+        """Retire weak/stale lessons and cap each grammar bucket."""
         removed = 0
         cutoff = time.time() - stale_days * 86400
         for folder in ("good-scenes", "bad-scenes"):
