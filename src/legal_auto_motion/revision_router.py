@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -46,6 +48,9 @@ def _text(report: dict) -> str:
             values.extend(str(item) for item in value)
         elif value:
             values.append(str(value))
+    nested = report.get("report")
+    if isinstance(nested, dict):
+        values.append(_text(nested))
     return " ".join(values).lower()
 
 
@@ -59,10 +64,10 @@ def choose_revision_route(*, stage: str = "", report: dict | None = None) -> Rev
         return ROUTES["fact"]
     if any(token in lowered_stage for token in ("timing", "beat")) or any(token in text for token in ("timing", "anchor", "时间锚", "帧范围", "too late")):
         return ROUTES["timing"]
-    if "visual" in lowered_stage or any(token in text for token in ("裁切", "安全区", "safe-zone", "clipped", "subtitle reserve", "主体过小", "遮挡")):
-        return ROUTES["visibility"]
     if "motion" in lowered_stage or any(token in text for token in ("freeze", "jitter", "无变化", "运动", "motion", "节奏停滞")):
         return ROUTES["motion"]
+    if "visual" in lowered_stage or any(token in text for token in ("裁切", "安全区", "safe-zone", "clipped", "subtitle reserve", "主体过小", "遮挡")):
+        return ROUTES["visibility"]
 
     scores = report.get("scores", {}) if isinstance(report.get("scores", {}), dict) else {}
     if int(scores.get("composition", 2)) <= 1 or int(scores.get("information_density", 2)) <= 1:
@@ -76,3 +81,67 @@ def revision_prompt(route: RevisionRoute, report_path: str) -> str:
         f"{route.instruction}"
         "只处理报告中列出的失败项；完成后运行 pnpm run verify，不要自行渲染。"
     )
+
+
+def _read(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def discover_revision_route(scene_dir: Path, prompt: str) -> tuple[RevisionRoute, str, dict] | None:
+    """Infer the active narrow repair from artifacts already produced by the pipeline.
+
+    This runs at the provider-adapter boundary, so every revision Worker provider
+    receives the same routing policy without requiring session reuse or broad
+    pipeline rewrites.
+    """
+    lowered = prompt.lower()
+    if not any(marker in lowered for marker in ("revision", "修复", "返工", "重新运行", "creative-critique")):
+        return None
+
+    artifacts = scene_dir / "artifacts"
+    candidates: list[tuple[str, Path]] = []
+
+    if "creative" in lowered or "creative-critique" in lowered or "视觉表达" in prompt:
+        candidates.append(("creative", artifacts / "creative-critique.json"))
+    if "动画" in prompt or "motion" in lowered or "freeze" in lowered or "jitter" in lowered:
+        candidates.append(("motion", artifacts / "visual-revision-request.json"))
+        candidates.append(("motion", artifacts / "motion-gate" / "motion-gate.json"))
+    if "可见" in prompt or "安全区" in prompt or "裁切" in prompt or "visual" in lowered:
+        candidates.append(("visual", artifacts / "visual-revision-request.json"))
+        candidates.append(("visual", artifacts / "visual-gate" / "visual-gate.json"))
+    if "timing" in lowered or "beat" in lowered or "帧" in prompt:
+        candidates.append(("timing", artifacts / "timing-revision-request.json"))
+        candidates.append(("timing", artifacts / "timing-audit.json"))
+    if "fact" in lowered or "事实" in prompt or "数字" in prompt:
+        candidates.append(("fact", artifacts / "fact-revision-request.json"))
+        candidates.append(("fact", artifacts / "fact-audit.json"))
+
+    # Generic revision prompts can mention both fact and timing. Prefer actual
+    # rejected evidence, otherwise fall back to the creative critique.
+    candidates.extend([
+        ("fact", artifacts / "fact-revision-request.json"),
+        ("timing", artifacts / "timing-revision-request.json"),
+        ("creative", artifacts / "creative-critique.json"),
+    ])
+
+    seen: set[Path] = set()
+    for stage, path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        report = _read(path)
+        if not report:
+            continue
+        route = choose_revision_route(stage=stage, report=report)
+        try:
+            display = str(path.relative_to(scene_dir))
+        except ValueError:
+            display = str(path)
+        return route, display.replace("\\", "/"), report
+    return None
