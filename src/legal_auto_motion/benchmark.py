@@ -28,6 +28,8 @@ def summarize_run(run_dir: Path) -> dict:
     scene_count = int(provenance.get("scene_count", 0) or sequence.get("scene_count", 0) or 0)
     failed = int(metrics.get("summary", {}).get("failed_calls", 0) or 0)
     calls = int(metrics.get("summary", {}).get("calls", 0) or 0)
+    repeated_motion_runs = sequence.get("repeated_motion_signature_runs", [])
+    repeated_silhouette_runs = sequence.get("repeated_silhouette_runs", [])
     return {
         "run": run_dir.name,
         "complete": completion.get("status") == "complete",
@@ -45,6 +47,8 @@ def summarize_run(run_dir: Path) -> dict:
         "energy_range": sequence.get("rhythm", {}).get("energy_range"),
         "max_high_density_run": sequence.get("rhythm", {}).get("max_high_density_run"),
         "max_scenes_without_reset": sequence.get("rhythm", {}).get("max_scenes_without_reset"),
+        "repeated_motion_signature_runs": len(repeated_motion_runs) if isinstance(repeated_motion_runs, list) else 0,
+        "repeated_silhouette_runs": len(repeated_silhouette_runs) if isinstance(repeated_silhouette_runs, list) else 0,
     }
 
 
@@ -59,7 +63,8 @@ def compare_runs(run_dirs: list[Path]) -> dict:
         best["lowest_revision_rate"] = min(complete_rows, key=lambda row: row["revision_calls_per_scene"])["run"]
         best["lowest_failure_rate"] = min(complete_rows, key=lambda row: row["failure_rate"])["run"]
         best["lowest_estimated_cost"] = min(complete_rows, key=lambda row: row["estimated_cost_usd"])["run"]
-    return {"version": "benchmark-v1", "runs": rows, "best": best}
+        best["lowest_motion_repetition"] = min(complete_rows, key=lambda row: row["repeated_motion_signature_runs"])["run"]
+    return {"version": "benchmark-v2-motion-diversity", "runs": rows, "best": best}
 
 
 def write_benchmark(run_dirs: list[Path], output: Path) -> dict:
