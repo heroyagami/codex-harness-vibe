@@ -5,8 +5,10 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageStat
 
+from .motion_signature import motion_signature, repeated_signature_runs
 
-SEQUENCE_REVIEW_VERSION = "sequence-rhythm-v2"
+
+SEQUENCE_REVIEW_VERSION = "sequence-rhythm-v3-motion-signature"
 
 
 def _similarity(left: Image.Image, right: Image.Image) -> float:
@@ -81,6 +83,7 @@ def build_sequence_review(run_dir: Path) -> dict:
     scene_count = len(plan["scenes"])
     rows: list[dict] = []
     tiles: list[tuple[str, Image.Image]] = []
+    motion_signatures: list[dict] = []
     for index in range(1, scene_count + 1):
         scene_id = f"scene-{index:03d}"
         scene_dir = run_dir / "scenes" / scene_id
@@ -89,6 +92,9 @@ def build_sequence_review(run_dir: Path) -> dict:
         state_path = scene_dir / "worker-state.json"
         motion_path = scene_dir / "artifacts" / "motion-gate" / "motion-gate.json"
         motion = json.loads(motion_path.read_text(encoding="utf-8")) if motion_path.exists() else {}
+        signature = motion_signature([float(value) for value in motion.get("change_scores", [])])
+        signature["scene_id"] = scene_id
+        motion_signatures.append(signature)
         state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {"status": "not_started"}
         rows.append(
             {
@@ -98,6 +104,7 @@ def build_sequence_review(run_dir: Path) -> dict:
                 "midpoint_ready": middle.exists(),
                 "motion_status": motion.get("status", "missing"),
                 "max_idle_seconds": motion.get("max_idle_seconds"),
+                "motion_signature": signature.get("signature"),
             }
         )
         if middle.exists():
@@ -129,6 +136,8 @@ def build_sequence_review(run_dir: Path) -> dict:
     for first, second in zip(similarities, similarities[1:]):
         if first["similarity"] >= 0.94 and second["similarity"] >= 0.94:
             repeated_runs.append([first["left"], first["right"], second["right"]])
+
+    repeated_motion_runs = repeated_signature_runs(motion_signatures, minimum_run=3)
     critic_missing = []
     for row in rows:
         critique = run_dir / "scenes" / row["scene_id"] / "artifacts" / "creative-critique.json"
@@ -140,6 +149,7 @@ def build_sequence_review(run_dir: Path) -> dict:
     passed = (
         ready == scene_count
         and not repeated_runs
+        and not repeated_motion_runs
         and not critic_missing
         and not motion_rejected
         and not blocking_rhythm_problems
@@ -154,6 +164,8 @@ def build_sequence_review(run_dir: Path) -> dict:
         "motion_rejected": motion_rejected,
         "adjacent_midpoint_similarity": similarities,
         "repeated_silhouette_runs": repeated_runs,
+        "motion_signatures": motion_signatures,
+        "repeated_motion_signature_runs": repeated_motion_runs,
         "rhythm": rhythm,
         "blocking_rhythm_problems": blocking_rhythm_problems,
         "scenes": rows,
@@ -163,6 +175,7 @@ def build_sequence_review(run_dir: Path) -> dict:
             "No primary copy is clipped or hidden by the subtitle reserve",
             "The sequence contains genuine visual resets rather than recolored templates",
             "Energy and density change with the argument instead of staying flat",
+            "Three consecutive scenes do not repeat the same coarse motion signature",
         ],
     }
     (artifacts / "sequence-review.json").write_text(
