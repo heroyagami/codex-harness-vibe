@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageStat
 
 from .config import config_for_run
+from .video_profile import profile_from_config
 from .visual_attention import analyze_attention_frame, summarize_attention
 
 
@@ -25,17 +26,12 @@ def _background_crop(scene_dir: Path, metadata: dict) -> Image.Image:
     return background.crop((x, y, x + metadata["width"], y + metadata["height"]))
 
 
-def _safe_zone(scene_dir: Path, metadata: dict) -> dict[str, int]:
-    run_dir = scene_dir.parents[1]
-    config = config_for_run(run_dir)
-    zone = {key: int(value) for key, value in config.safe_zone.items()}
-    width = int(metadata["width"])
-    height = int(metadata["height"])
-    if not 0 <= zone["left"] < zone["right"] <= width:
-        raise RuntimeError("Configured horizontal safe zone does not fit rendered scene width")
-    if not 0 <= zone["top"] < zone["content_bottom"] <= height:
-        raise RuntimeError("Configured content safe zone does not fit rendered scene height")
-    return zone
+def _profile(scene_dir: Path, metadata: dict):
+    config = config_for_run(scene_dir.parents[1])
+    profile = profile_from_config(config.video, config.safe_zone)
+    if profile.width != int(metadata["width"]) or profile.height != int(metadata["height"]):
+        raise RuntimeError("Configured video profile does not match rendered scene dimensions")
+    return profile
 
 
 def inspect_render(scene_dir: Path) -> dict:
@@ -44,20 +40,28 @@ def inspect_render(scene_dir: Path) -> dict:
     duration = metadata["duration_in_frames"] / metadata["fps"]
     artifacts = scene_dir / "artifacts" / "visual-gate"
     artifacts.mkdir(parents=True, exist_ok=True)
-    zone = _safe_zone(scene_dir, metadata)
-    safe_box = (zone["left"], zone["top"], zone["right"], zone["content_bottom"])
-    safe_width = max(1, zone["right"] - zone["left"])
-    safe_height = max(1, zone["content_bottom"] - zone["top"])
+    profile = _profile(scene_dir, metadata)
+    zone = {
+        "left": profile.left,
+        "right": profile.right,
+        "top": profile.top,
+        "content_bottom": profile.content_bottom,
+        "subtitle_bottom": profile.subtitle_bottom,
+        "edge_guard": profile.edge_guard,
+    }
+    safe_box = (profile.left, profile.top, profile.right, profile.content_bottom)
+    safe_width = max(1, profile.right - profile.left)
+    safe_height = max(1, profile.content_bottom - profile.top)
     full_background = _background_crop(scene_dir, metadata)
     background = full_background.crop(safe_box)
     samples = []
     attention_samples = []
     unsafe_edge_samples = []
-    edge_guard = int(zone["edge_guard"])
+    edge_guard = profile.edge_guard
     scene_width = int(metadata["width"])
     scene_height = int(metadata["height"])
-    edge_top = min(100, max(0, zone["top"]))
-    edge_bottom = min(scene_height, max(zone["content_bottom"], edge_top + 1))
+    edge_top = min(100, max(0, profile.top))
+    edge_bottom = min(scene_height, max(profile.content_bottom, edge_top + 1))
     for label, ratio in (("early", 0.25), ("mid", 0.50), ("late", 0.75)):
         image_path = artifacts / f"{label}.png"
         subprocess.run(
@@ -99,6 +103,8 @@ def inspect_render(scene_dir: Path) -> dict:
     problems += attention.get("problems", [])
     report = {
         "scene_id": scene_dir.name,
+        "profile": profile.name,
+        "canvas": {"width": profile.width, "height": profile.height, "fps": profile.fps},
         "status": "accepted" if not problems else "rejected",
         "safe_zone": zone,
         "samples": samples,
