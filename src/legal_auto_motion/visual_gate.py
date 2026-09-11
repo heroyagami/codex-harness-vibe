@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageStat
 
 from .config import config_for_run
+from .visual_attention import analyze_attention_frame, summarize_attention
 
 
 def _ffmpeg() -> str:
@@ -50,6 +51,7 @@ def inspect_render(scene_dir: Path) -> dict:
     full_background = _background_crop(scene_dir, metadata)
     background = full_background.crop(safe_box)
     samples = []
+    attention_samples = []
     unsafe_edge_samples = []
     edge_guard = int(zone["edge_guard"])
     scene_width = int(metadata["width"])
@@ -77,6 +79,10 @@ def inspect_render(scene_dir: Path) -> dict:
         samples.append(
             {"label": label, "time_seconds": round(duration * ratio, 3), "mean_difference": mean_difference, "changed_ratio": changed_ratio}
         )
+        attention = analyze_attention_frame(image, background)
+        attention["label"] = label
+        attention["time_seconds"] = round(duration * ratio, 3)
+        attention_samples.append(attention)
         edge_diff = ImageChops.difference(full_image, full_background).convert("L")
         left = edge_diff.crop((0, edge_top, edge_guard, edge_bottom))
         right = edge_diff.crop((scene_width - edge_guard, edge_top, scene_width, edge_bottom))
@@ -87,15 +93,19 @@ def inspect_render(scene_dir: Path) -> dict:
         )
     visible_samples = [item for item in samples if item["mean_difference"] >= 3 and item["changed_ratio"] >= 0.01]
     clipped_samples = [item for item in unsafe_edge_samples if item["changed_ratio"] >= 0.025]
+    attention = summarize_attention(attention_samples)
+    problems = (["representative frames are mostly empty inside the configured content safe zone"] if len(visible_samples) < 2 else [])
+    problems += (["foreground content touches or crosses the configured outer edge guard"] if clipped_samples else [])
+    problems += attention.get("problems", [])
     report = {
         "scene_id": scene_dir.name,
-        "status": "accepted" if len(visible_samples) >= 2 and not clipped_samples else "rejected",
+        "status": "accepted" if not problems else "rejected",
         "safe_zone": zone,
         "samples": samples,
+        "attention_gate": attention,
         "unsafe_edge_samples": unsafe_edge_samples,
-        "problems": (["representative frames are mostly empty inside the configured content safe zone"] if len(visible_samples) < 2 else [])
-        + (["foreground content touches or crosses the configured outer edge guard"] if clipped_samples else []),
-        "rule": "At least two representative frames must be visible inside the configured safe zone and primary content must stay clear of the outer edge guard.",
+        "problems": problems,
+        "rule": "Representative frames must be visible, primary content must clear the outer edge guard, and visual attention must not fail in two or more representative frames.",
     }
     (artifacts / "visual-gate.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
