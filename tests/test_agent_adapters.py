@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,6 +38,28 @@ class AgentAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, "command"):
                 build_invocation(Path(folder), "task", ModelRoute("generic_cli"))
+
+    def test_scene_revision_gets_adaptive_route_and_manifest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            run = Path(folder) / "run"
+            scene = run / "scenes" / "scene-001"
+            report = scene / "artifacts" / "creative-critique.json"
+            report.parent.mkdir(parents=True)
+            report.write_text(
+                json.dumps({"scores": {"composition": 1, "information_density": 2}, "problems": ["构图空"]}),
+                encoding="utf-8",
+            )
+            invocation = build_invocation(
+                scene,
+                "读取 artifacts/creative-critique.json，把 problems 作为返工要求并修复。",
+                ModelRoute("codex_worker", "gpt-test"),
+            )
+            self.assertIn("# Adaptive Revision Route", invocation.stdin)
+            self.assertIn("本次返工类型：composition", invocation.stdin)
+            manifest = json.loads((scene / ".harness" / "revision-route.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["route"], "composition")
+            context = json.loads((scene / ".harness" / "invocation-context.json").read_text(encoding="utf-8"))
+            self.assertEqual(context["adaptive_revision"]["route"], "composition")
 
 
 if __name__ == "__main__":
