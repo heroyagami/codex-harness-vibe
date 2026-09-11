@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import ModelRoute, config_for_run
 from .context_policy import CONTEXT_POLICY_VERSION
 from .providers import claude_command, codex_text_command, codex_worker_command
+from .revision_router import discover_revision_route, revision_prompt
 
 
 DEFAULT_MAX_SCENE_PROMPT_CHARS = 18000
@@ -59,9 +60,37 @@ def _isolation_prefix() -> str:
     )
 
 
+def _adaptive_revision_overlay(cwd: Path, prompt: str) -> tuple[str, dict | None]:
+    discovered = discover_revision_route(cwd, prompt)
+    if discovered is None:
+        return prompt, None
+    route, report_path, _report = discovered
+    instruction = revision_prompt(route, report_path)
+    manifest = {
+        "route": route.kind,
+        "priority": route.priority,
+        "report_path": report_path,
+        "instruction_sha256": hashlib.sha256(instruction.encode("utf-8")).hexdigest(),
+        "created_at": time.time(),
+    }
+    artifacts = cwd / ".harness"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "revision-route.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return (
+        "# Adaptive Revision Route\n"
+        f"{instruction}\n"
+        "This route narrows the repair scope. Do not broaden the rewrite unless the selected report makes the narrow repair impossible.\n\n"
+        + prompt,
+        manifest,
+    )
+
+
 def _write_invocation_manifest(
     artifacts: Path, cwd: Path, route: ModelRoute, prompt: str, *,
     max_prompt_chars: int, style_memory_chars: int, max_style_memory_chars: int,
+    revision_manifest: dict | None = None,
 ) -> None:
     payload = {
         "version": CONTEXT_POLICY_VERSION,
@@ -78,6 +107,8 @@ def _write_invocation_manifest(
         "session_history_inherited": False,
         "sibling_scene_history_allowed": False,
     }
+    if revision_manifest is not None:
+        payload["adaptive_revision"] = revision_manifest
     (artifacts / "invocation-context.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -100,6 +131,7 @@ def build_invocation(
     env = os.environ.copy()
 
     effective_prompt = prompt
+    revision_manifest = None
     if _is_scene_worker_cwd(cwd):
         config = config_for_run(cwd.parents[1])
         configured_prompt_limit = int(config.context.get("max_prompt_chars", DEFAULT_MAX_SCENE_PROMPT_CHARS))
@@ -113,7 +145,8 @@ def build_invocation(
                 raise ValueError(
                     f"Style Memory exceeds isolated context budget: {style_memory_chars} > {memory_limit} chars"
                 )
-        effective_prompt = _isolation_prefix() + prompt
+        routed_prompt, revision_manifest = _adaptive_revision_overlay(cwd, prompt)
+        effective_prompt = _isolation_prefix() + routed_prompt
         if len(effective_prompt) > prompt_limit:
             raise ValueError(
                 f"Scene worker prompt exceeds isolated context budget: {len(effective_prompt)} > {prompt_limit} chars"
@@ -121,11 +154,14 @@ def build_invocation(
         env["HARNESS_CONTEXT_POLICY"] = CONTEXT_POLICY_VERSION
         env["HARNESS_SCENE_ID"] = cwd.name
         env["HARNESS_FRESH_CONTEXT"] = "1"
+        if revision_manifest is not None:
+            env["HARNESS_REVISION_ROUTE"] = str(revision_manifest["route"])
         _write_invocation_manifest(
             artifacts, cwd, route, effective_prompt,
             max_prompt_chars=prompt_limit,
             style_memory_chars=style_memory_chars,
             max_style_memory_chars=memory_limit,
+            revision_manifest=revision_manifest,
         )
 
     if route.provider == "claude":
