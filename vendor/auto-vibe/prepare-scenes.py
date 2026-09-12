@@ -8,6 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from runtime_profile import (
+    RuntimeProfileError,
+    read_runtime_profile,
+    validate_background_coverage,
+)
 from scene_plan import ScenePlanError, read_scene_plan_document
 from shared_dependencies import SharedDependenciesError, link_shared_node_modules
 
@@ -223,7 +228,9 @@ def substitute_scene_prompt(
     prompt_path.write_text(text, encoding="utf-8")
 
 
-def write_scene_config(scene_dir, scene_plan, timeline_origin_seconds, fps):
+def write_scene_config(
+    scene_dir, scene_plan, timeline_origin_seconds, runtime_profile
+):
     config_path = scene_dir / "remotion" / "scene-config.ts"
     background_image = scene_plan["background"]["target"]
     if not background_image.startswith("public/"):
@@ -235,9 +242,9 @@ def write_scene_config(scene_dir, scene_plan, timeline_origin_seconds, fps):
     }
     lines = [
         f"export const SCENE_ID = {json.dumps(scene_plan['scene_id'])};",
-        f"export const FPS = {fps};",
-        "export const WIDTH = 1080;",
-        "export const HEIGHT = 1440;",
+        f"export const FPS = {runtime_profile.fps};",
+        f"export const WIDTH = {runtime_profile.width};",
+        f"export const HEIGHT = {runtime_profile.height};",
         f"export const DURATION_IN_FRAMES = {scene_plan['duration_in_frames']};",
         f"export const VISUAL_THEME = {json.dumps(scene_plan['visual_theme'])} as const;",
         f"export const TIMELINE_ORIGIN_SECONDS = {json.dumps(timeline_origin_seconds)};",
@@ -255,9 +262,9 @@ def write_scene_config(scene_dir, scene_plan, timeline_origin_seconds, fps):
     metadata = {
         "scene_id": scene_plan["scene_id"],
         "output_file": scene_plan["output_file"],
-        "fps": fps,
-        "width": 1080,
-        "height": 1440,
+        "fps": runtime_profile.fps,
+        "width": runtime_profile.width,
+        "height": runtime_profile.height,
         "timeline_origin_seconds": timeline_origin_seconds,
         "frame_range": scene_plan["frame_range"],
         "render_range_seconds": scene_plan["render_range_seconds"],
@@ -276,8 +283,14 @@ def write_scene_config(scene_dir, scene_plan, timeline_origin_seconds, fps):
 
 
 try:
+    runtime_profile = read_runtime_profile(args.scene_plan_path)
     scene_plan_document = read_scene_plan_document(args.scene_plan_path)
-except ScenePlanError as exc:
+    if scene_plan_document["fps"] != runtime_profile.fps:
+        raise RuntimeProfileError(
+            "scene-plan timeline fps does not match runtime_profile.fps"
+        )
+    validate_background_coverage(runtime_profile, scene_plan_document["background"])
+except (ScenePlanError, RuntimeProfileError) as exc:
     sys.exit(str(exc))
 scene_plan = scene_plan_document["scenes"]
 scenes_dir.mkdir(parents=True, exist_ok=True)
@@ -309,13 +322,13 @@ for i, plan_item in enumerate(scene_plan, start=1):
         scene_id,
         plan_item,
         scene_plan_document["timeline_start_seconds"],
-        scene_plan_document["fps"],
+        runtime_profile.fps,
     )
     write_scene_config(
         scene_dir,
         plan_item,
         scene_plan_document["timeline_start_seconds"],
-        scene_plan_document["fps"],
+        runtime_profile,
     )
     design_system_name = copy_design_system(
         scene_dir, scene_plan_document["visual_theme"]
@@ -361,7 +374,8 @@ if args.install_dependencies:
         sys.exit(str(exc))
 
 print(
-    f"Prepared {len(prepared)} {scene_plan_document['visual_theme']} scene(s) in {scenes_dir}"
+    f"Prepared {len(prepared)} {scene_plan_document['visual_theme']} scene(s) in {scenes_dir} "
+    f"at {runtime_profile.name}"
 )
 for scene_id, design_system_name, image_resource_count in prepared:
     print(

@@ -5,6 +5,11 @@ import shutil
 import sys
 from pathlib import Path
 
+from runtime_profile import (
+    RuntimeProfileError,
+    read_runtime_profile,
+    validate_background_coverage,
+)
 from scene_plan import ScenePlanError, read_scene_plan_document
 from shared_dependencies import SharedDependenciesError, link_shared_node_modules
 
@@ -75,7 +80,7 @@ def block_field(key, value):
     return "\n".join([f"{key}: |-"] + [f"  {line}" for line in lines])
 
 
-def write_transition_prompt(transition_dir, transition, visual_theme):
+def write_transition_prompt(transition_dir, transition, visual_theme, runtime_profile):
     prompt_path = transition_dir / "transition-prompt.md"
     text = prompt_path.read_text(encoding="utf-8")
     try:
@@ -87,7 +92,7 @@ def write_transition_prompt(transition_dir, transition, visual_theme):
         f"transition_id: {transition['transition_id']}",
         f"transition_type: {transition['type']}",
         f"output_file: {transition['output_file']}",
-        "fps: 30",
+        f"fps: {runtime_profile.fps}",
         f"frame_range: {json.dumps(transition['frame_range'])}",
         f"time_range_seconds: {json.dumps(transition['time_range_seconds'])}",
         f"duration_in_frames: {transition['duration_in_frames']}",
@@ -102,21 +107,24 @@ def write_transition_prompt(transition_dir, transition, visual_theme):
     prompt_path.write_text("\n".join(header) + "\n---\n" + body, encoding="utf-8")
 
 
-def write_transition_config(transition_dir, transition, background, visual_theme):
+def write_transition_config(
+    transition_dir, transition, background, visual_theme, runtime_profile
+):
     config_path = transition_dir / "remotion" / "transition-config.ts"
     background_name = f"background{Path(background['target']).suffix.lower()}"
+    foreground_travel = round(runtime_profile.height * 5 / 6)
     lines = [
         f"export const TRANSITION_ID = {json.dumps(transition['transition_id'])};",
         f"export const TRANSITION_TYPE: \"parallax\" | \"custom\" = {json.dumps(transition['type'])};",
-        "export const FPS = 30;",
-        "export const WIDTH = 1080;",
-        "export const HEIGHT = 1440;",
+        f"export const FPS = {runtime_profile.fps};",
+        f"export const WIDTH = {runtime_profile.width};",
+        f"export const HEIGHT = {runtime_profile.height};",
         f"export const DURATION_IN_FRAMES = {transition['duration_in_frames']};",
         f"export const VISUAL_THEME = {json.dumps(visual_theme)} as const;",
         f"export const BACKGROUND_IMAGE = {json.dumps(f'input/{background_name}')};",
         f"export const BACKGROUND_WIDTH = {background['width']};",
         f"export const BACKGROUND_HEIGHT = {background['height']};",
-        "export const FOREGROUND_TRAVEL = 1200;",
+        f"export const FOREGROUND_TRAVEL = {foreground_travel};",
         f"export const BACKGROUND_COLOR = {json.dumps(background['fallback_color'])};",
         'export const FROM_FOREGROUND_IMAGE = "input/from-foreground.png";',
         'export const TO_FOREGROUND_IMAGE = "input/to-foreground.png";',
@@ -127,8 +135,14 @@ def write_transition_config(transition_dir, transition, background, visual_theme
 
 
 try:
+    runtime_profile = read_runtime_profile(args.scene_plan_path)
     document = read_scene_plan_document(args.scene_plan_path)
-except ScenePlanError as exc:
+    if document["fps"] != runtime_profile.fps:
+        raise RuntimeProfileError(
+            "scene-plan timeline fps does not match runtime_profile.fps"
+        )
+    validate_background_coverage(runtime_profile, document["background"])
+except (ScenePlanError, RuntimeProfileError) as exc:
     sys.exit(str(exc))
 
 rendered_transitions = [
@@ -184,12 +198,18 @@ for transition in rendered_transitions:
     scene_config.unlink(missing_ok=True)
     (transition_dir / "public" / "input").mkdir(parents=True, exist_ok=True)
 
-    write_transition_prompt(transition_dir, transition, document["visual_theme"])
+    write_transition_prompt(
+        transition_dir,
+        transition,
+        document["visual_theme"],
+        runtime_profile,
+    )
     write_transition_config(
         transition_dir,
         transition,
         document["background"],
         document["visual_theme"],
+        runtime_profile,
     )
     spec = {
         "transition_id": transition_id,
@@ -197,9 +217,9 @@ for transition in rendered_transitions:
         "type": transition["type"],
         "reason": transition["reason"],
         "subtitle_context": transition["subtitle_context"],
-        "fps": document["fps"],
-        "width": 1080,
-        "height": 1440,
+        "fps": runtime_profile.fps,
+        "width": runtime_profile.width,
+        "height": runtime_profile.height,
         "visual_theme": document["visual_theme"],
         "frame_range": transition["frame_range"],
         "time_range_seconds": transition["time_range_seconds"],
@@ -219,6 +239,9 @@ for transition in rendered_transitions:
         sys.exit(str(exc))
     prepared.append(transition_id)
 
-print(f"Prepared {len(prepared)} rendered transition(s) in {transitions_dir}")
+print(
+    f"Prepared {len(prepared)} rendered transition(s) in {transitions_dir} "
+    f"at {runtime_profile.name}"
+)
 for transition_id in prepared:
     print(f"- {transition_id}")
