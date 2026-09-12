@@ -8,14 +8,14 @@ import {
   formatForegroundLayout,
 } from "./foreground-layout.mjs";
 
-const WIDTH = 1080;
-const HEIGHT = 1440;
 const METADATA_PATH = resolve("scene-metadata.json");
 const ARTIFACTS_DIR = resolve("artifacts");
 
 const fail = (message) => {
   throw new Error(message);
 };
+
+const positiveInteger = (value) => Number.isInteger(value) && value > 0;
 
 const readMetadata = () => {
   let value;
@@ -27,16 +27,13 @@ const readMetadata = () => {
   if (
     typeof value.scene_id !== "string" ||
     typeof value.output_file !== "string" ||
-    value.fps !== 30 ||
-    value.width !== WIDTH ||
-    value.height !== HEIGHT ||
+    !positiveInteger(value.fps) ||
+    !positiveInteger(value.width) ||
+    !positiveInteger(value.height) ||
     !["light", "dark"].includes(value.visual_theme) ||
-    !Number.isInteger(value.duration_in_frames) ||
-    value.duration_in_frames < 1 ||
-    !Number.isInteger(value.background_width) ||
-    value.background_width <= WIDTH ||
-    !Number.isInteger(value.background_height) ||
-    value.background_height <= HEIGHT ||
+    !positiveInteger(value.duration_in_frames) ||
+    !positiveInteger(value.background_width) ||
+    !positiveInteger(value.background_height) ||
     typeof value.background_color !== "string" ||
     !value.background_anchor ||
     ![0, 1].includes(value.background_anchor.x) ||
@@ -88,13 +85,14 @@ const probeVideo = (metadata) => {
   const stream = JSON.parse(result.stdout).streams?.[0];
   const frames = Number(stream?.nb_read_frames || stream?.nb_frames);
   if (
-    stream?.width !== WIDTH ||
-    stream?.height !== HEIGHT ||
-    stream?.r_frame_rate !== "30/1" ||
+    stream?.width !== metadata.width ||
+    stream?.height !== metadata.height ||
+    stream?.r_frame_rate !== `${metadata.fps}/1` ||
     frames !== metadata.duration_in_frames
   ) {
     fail(
-      `${metadata.output_file} must be ${WIDTH}x${HEIGHT}, 30fps, ${metadata.duration_in_frames} frames`,
+      `${metadata.output_file} must be ${metadata.width}x${metadata.height}, ` +
+        `${metadata.fps}fps, ${metadata.duration_in_frames} frames`,
     );
   }
 };
@@ -112,7 +110,7 @@ const renderStill = (compositionId, output, frame) => {
   ]);
 };
 
-const extractAlphaPlane = (path) => {
+const extractAlphaPlane = (path, width, height) => {
   const result = spawnSync(
     "ffmpeg",
     [
@@ -134,7 +132,7 @@ const extractAlphaPlane = (path) => {
       cwd: process.cwd(),
       encoding: null,
       stdio: "pipe",
-      maxBuffer: WIDTH * HEIGHT * 4,
+      maxBuffer: width * height * 4,
     },
   );
   if (result.error) fail(`ffmpeg: ${result.error.message}`);
@@ -147,15 +145,15 @@ const extractAlphaPlane = (path) => {
       .trim();
     fail(`ffmpeg exited with ${result.status}${detail ? `: ${detail}` : ""}`);
   }
-  if (result.stdout.length !== WIDTH * HEIGHT) {
+  if (result.stdout.length !== width * height) {
     fail(
-      `${path} produced ${result.stdout.length} alpha samples; expected ${WIDTH * HEIGHT}`,
+      `${path} produced ${result.stdout.length} alpha samples; expected ${width * height}`,
     );
   }
   return result.stdout;
 };
 
-const probeForeground = (path) => {
+const probeForeground = (path, metadata) => {
   const probe = run(
     "ffprobe",
     [
@@ -173,40 +171,46 @@ const probeForeground = (path) => {
   );
   const stream = JSON.parse(probe.stdout).streams?.[0];
   if (
-    stream?.width !== WIDTH ||
-    stream?.height !== HEIGHT ||
+    stream?.width !== metadata.width ||
+    stream?.height !== metadata.height ||
     !String(stream?.pix_fmt || "").includes("a")
   ) {
-    fail(`${path} must be a ${WIDTH}x${HEIGHT} PNG with an alpha channel`);
+    fail(
+      `${path} must be a ${metadata.width}x${metadata.height} PNG with an alpha channel`,
+    );
   }
 
   const analysis = analyzeForegroundAlpha(
-    extractAlphaPlane(path),
-    WIDTH,
-    HEIGHT,
+    extractAlphaPlane(path, metadata.width, metadata.height),
+    metadata.width,
+    metadata.height,
   );
   const alphaIssue = foregroundAlphaIssue(analysis);
   if (alphaIssue) fail(`${path} ${alphaIssue}`);
 
-  const layoutIssues = foregroundLayoutIssues(analysis, WIDTH, HEIGHT);
+  const layoutIssues = foregroundLayoutIssues(
+    analysis,
+    metadata.width,
+    metadata.height,
+  );
   if (layoutIssues.length > 0) {
     fail(
       `${path} has unsafe foreground layout: ${layoutIssues.join("; ")} ` +
         `(${formatForegroundLayout(analysis)}). Place the horizontal main ` +
-        `layout around x=${WIDTH / 2} with visible edge inset; explicitly set ` +
+        `layout around x=${metadata.width / 2} with visible edge inset; explicitly set ` +
         `AbsoluteFill flexDirection when using alignItems or justifyContent.`,
     );
   }
 };
 
-const renderHandle = (name, frame) => {
+const renderHandle = (name, frame, metadata) => {
   const foregroundName = `transition-${name}-foreground.png`;
   const compositeName = `transition-${name}-composite.png`;
   const foregroundPath = resolve(ARTIFACTS_DIR, foregroundName);
   const compositePath = resolve(ARTIFACTS_DIR, compositeName);
   renderStill("foreground", foregroundPath, frame);
   renderStill("default", compositePath, frame);
-  probeForeground(foregroundPath);
+  probeForeground(foregroundPath, metadata);
   return {
     scene_frame: frame,
     foreground: `artifacts/${foregroundName}`,
@@ -221,10 +225,14 @@ const main = () => {
 
   const handles = {};
   if (metadata.transition_handles.entry) {
-    handles.entry = renderHandle("in", 0);
+    handles.entry = renderHandle("in", 0, metadata);
   }
   if (metadata.transition_handles.exit) {
-    handles.exit = renderHandle("out", metadata.duration_in_frames - 1);
+    handles.exit = renderHandle(
+      "out",
+      metadata.duration_in_frames - 1,
+      metadata,
+    );
   }
 
   const manifest = {
