@@ -5,6 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from runtime_profile import RuntimeProfileError, read_runtime_profile
 from scene_plan import ScenePlanError, read_scene_plan_document
 
 
@@ -37,12 +38,12 @@ def resolve_scene_artifact(scene_dir, value, label):
     return require_file(candidate)
 
 
-def validate_scene_manifest(scene, manifest, required_handle):
+def validate_scene_manifest(scene, manifest, required_handle, profile):
     expected = {
         "scene_id": scene["scene_id"],
-        "fps": 30,
-        "width": 1080,
-        "height": 1440,
+        "fps": profile.fps,
+        "width": profile.width,
+        "height": profile.height,
         "frame_range": scene["frame_range"],
         "duration_in_frames": scene["duration_in_frames"],
         "visual_theme": scene["visual_theme"],
@@ -90,7 +91,8 @@ def main():
     )
     try:
         document = read_scene_plan_document(plan_path)
-    except ScenePlanError as exc:
+        profile = read_runtime_profile(plan_path)
+    except (ScenePlanError, RuntimeProfileError) as exc:
         fail(str(exc))
 
     transition = next(
@@ -118,8 +120,8 @@ def main():
     to_manifest_path = require_file(to_dir / "artifacts" / "scene-manifest.json")
     from_manifest = load_json(from_manifest_path)
     to_manifest = load_json(to_manifest_path)
-    from_handle = validate_scene_manifest(from_scene, from_manifest, "exit")
-    to_handle = validate_scene_manifest(to_scene, to_manifest, "entry")
+    from_handle = validate_scene_manifest(from_scene, from_manifest, "exit", profile)
+    to_handle = validate_scene_manifest(to_scene, to_manifest, "entry", profile)
     require_file(from_dir / from_scene["output_file"])
     require_file(to_dir / to_scene["output_file"])
     from_background = resolve_scene_artifact(
@@ -189,6 +191,11 @@ def main():
         "to_scene_output": str(
             (to_dir / to_scene["output_file"]).relative_to(root_dir)
         ),
+        "runtime_profile": {
+            "width": profile.width,
+            "height": profile.height,
+            "fps": profile.fps,
+        },
         "from_background_anchor": transition["from_background_anchor"],
         "to_background_anchor": transition["to_background_anchor"],
         "visual_theme": document["visual_theme"],
