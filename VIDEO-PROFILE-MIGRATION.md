@@ -1,10 +1,10 @@
 # Video profile migration
 
-The Harness now has a centralized `VideoProfile` abstraction for canvas dimensions, safe-zone geometry, subtitle margins and prompt wording.
+The Harness has a centralized `VideoProfile` abstraction for canvas dimensions, safe-zone geometry, subtitle margins and prompt wording.
 
 ## Current production profile
 
-The purchased/current vendor renderer remains locked to:
+The current vendor renderer remains locked to:
 
 - 1080 × 1440
 - 30 fps
@@ -23,6 +23,24 @@ The purchased/current vendor renderer remains locked to:
 
 Declaring this target does **not** mean the vendor renderer is already compatible.
 
+## Machine-checkable readiness
+
+Run:
+
+```bash
+python scripts/check_video_profile.py --profile vertical_9_16
+```
+
+The command reports `ready` or `blocked` and lists concrete blockers. This is the required preflight before relaxing renderer validation.
+
+As of this migration stage the 9:16 profile is intentionally blocked for three verified reasons:
+
+1. `vendor/auto-vibe/prepare-scenes.py` still emits fixed `1080 × 1440` scene config and scene metadata.
+2. `vendor/auto-vibe/prepare-transitions.py` still emits fixed `1080 × 1440` transition config and transition specs.
+3. The shared backgrounds are `1480 × 1840`, which is shorter than the target 1920-pixel canvas and therefore cannot satisfy the existing background-crop contract.
+
+The third blocker is important: changing only Remotion composition constants would produce a fake migration with an invalid background model.
+
 ## What is parameterized now
 
 - scene visual-gate geometry
@@ -30,15 +48,30 @@ Declaring this target does **not** mean the vendor renderer is already compatibl
 - visual-attention analysis area
 - platform-safe prompt wording helper
 - subtitle margin/style helper
-- renderer compatibility check helper
+- renderer compatibility helper
+- runtime-readiness reporting
+- benchmark corpus used to compare production behavior before and after the migration
 
 ## Remaining work before enabling 1080 × 1920
 
-1. Migrate the Remotion root composition and purchased `sceneFolder` runtime dimensions.
-2. Migrate background images/crop assumptions and transition workspaces.
-3. Replace remaining hard-coded canvas/safe-zone strings in Worker/Critic prompts with `VideoProfile.safe_zone_prompt()`.
-4. Replace final ffmpeg subtitle `original_size` and margins with profile-derived values.
-5. Re-run visual, motion, transition, subtitle and assembly benchmark fixtures at 1080 × 1920.
-6. Only then relax the renderer compatibility validation in `config.py`.
+1. Add native 9:16 shared backgrounds whose width and height exceed the 1080 × 1920 canvas.
+2. Pass profile width/height/fps through the scene-plan document rather than relying on vendor constants.
+3. Make `prepare-scenes.py` emit scene config and metadata from the plan profile.
+4. Make `prepare-transitions.py` emit transition config/specs from the same profile.
+5. Migrate the Remotion root composition and transition workspace to those generated dimensions.
+6. Replace remaining hard-coded canvas/safe-zone strings in Worker/Critic prompts with `VideoProfile.safe_zone_prompt()`.
+7. Replace final ffmpeg subtitle `original_size` and margins with profile-derived values.
+8. Run the fixed `benchmarks/corpus-v1` corpus through visual, motion, transition, subtitle and assembly checks for both profiles.
+9. Only after `check_video_profile.py --profile vertical_9_16` reports `ready`, relax renderer compatibility validation in `config.py`.
 
-The migration should be benchmarked against the existing 1080 × 1440 profile rather than switched blindly.
+## Fixed regression corpus
+
+The repository now keeps six stable legal-video cases under `benchmarks/corpus-v1` covering timelines, relationships, process flows, numeric events, clause comparisons and evidence chains.
+
+Validate it with:
+
+```bash
+python scripts/validate_benchmark_corpus.py
+```
+
+Do not replace these fixtures merely because a new Harness version performs poorly on them. They are regression anchors.
