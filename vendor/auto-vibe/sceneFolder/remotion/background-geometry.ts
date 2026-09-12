@@ -24,7 +24,13 @@ export const coverBackgroundGeometry = ({
   canvasHeight: number;
   anchor: BackgroundAnchor;
 }): CoverBackgroundGeometry => {
-  const scale = Math.max(canvasWidth / sourceWidth, canvasHeight / sourceHeight);
+  // Preserve the legacy 1080x1440 crop exactly. We only enlarge a background
+  // when a larger canvas needs extra coverage; sources are never downscaled.
+  const scale = Math.max(
+    1,
+    canvasWidth / sourceWidth,
+    canvasHeight / sourceHeight,
+  );
   const width = sourceWidth * scale;
   const height = sourceHeight * scale;
   const overflowX = Math.max(0, width - canvasWidth);
