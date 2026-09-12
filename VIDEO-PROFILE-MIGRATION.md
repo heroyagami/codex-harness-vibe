@@ -31,7 +31,7 @@ Run:
 python scripts/check_video_profile.py --profile vertical_9_16
 ```
 
-This command checks the low-level canvas runtime: dynamic scene/transition dimensions, background geometry and the bounded cover policy. A `ready` result means the runtime layer can represent the target profile; it does not bypass the higher-level production compatibility gate in `config.py`.
+This command checks the low-level canvas runtime: dynamic scene/transition dimensions, background geometry and the bounded native-or-cover policy. A `ready` result means the runtime layer can represent the target profile; it does not bypass the higher-level production compatibility gate in `config.py`.
 
 ## Phase 1: runtime propagation completed
 
@@ -68,9 +68,11 @@ A future scene plan may transport the migration target explicitly:
 }
 ```
 
-## Phase 2: bounded background cover completed
+## Phase 2: bounded native-or-cover background geometry completed
 
-The shared backgrounds remain `1480 × 1840`, but raw source dimensions no longer need to exceed the canvas in both axes. Scene and parallax-transition runtimes now use the same anchored **cover-scale** geometry.
+The shared backgrounds remain `1480 × 1840`, but raw source dimensions no longer need to exceed the canvas in both axes. Scene and parallax-transition runtimes now use the same anchored **native-or-cover** geometry.
+
+The compatibility rule is important: the renderer never shrinks the existing shared texture. If the source already covers the canvas, scale remains exactly `1.0`, preserving the current 1080 × 1440 crop. Only a larger canvas may trigger the minimum required upscale.
 
 For the 1080 × 1920 target, the existing background requires:
 
@@ -82,22 +84,22 @@ or about a **4.35% upscale**. The runtime allows this because the global backgro
 
 This is deliberately bounded. A background requiring more than 10% enlargement fails closed instead of silently producing soft texture or transition mismatch.
 
-The cover algorithm is shared by scene compositions and parallax transitions:
+The geometry algorithm is shared by scene compositions and parallax transitions:
 
-1. `scale = max(canvas_width / source_width, canvas_height / source_height)`
-2. render the background at the scaled dimensions
+1. `scale = max(1, canvas_width / source_width, canvas_height / source_height)`
+2. render the background at the resulting dimensions
 3. compute overflow after scaling
 4. apply the existing background anchor to that overflow
 
-This preserves the original top-left/top-right/bottom-right/bottom-left anchor language across 3:4 and 9:16.
+This preserves both the old 3:4 crop and the top-left/top-right/bottom-right/bottom-left anchor language across 3:4 and 9:16.
 
-`stage-transition.py` also validates scene manifests against the transported runtime profile rather than fixed 1080 × 1440 values.
+`render-transition-handles.mjs`, rendered-clip verification and `stage-transition.py` now also use generated runtime width/height/fps rather than remembered 1080 × 1440 constants. Scene-manifest generation and transition staging therefore share the same canvas contract.
 
 ## Asset identity vs render coverage
 
 The legacy `scene_plan.py` still owns the identity contract for the approved light/dark shared background assets. That contract intentionally remains exact: it verifies the expected source path and the actual source-image dimensions.
 
-Profile-specific render coverage is now a separate responsibility of `runtime_profile.py`. This avoids coupling the large semantic scene-plan validator to CSS/render geometry while still keeping the selected asset deterministic and auditable.
+Profile-specific render coverage is a separate responsibility of `runtime_profile.py`. This avoids coupling the large semantic scene-plan validator to render geometry while still keeping the selected asset deterministic and auditable.
 
 ## What is parameterized now
 
@@ -114,19 +116,21 @@ Profile-specific render coverage is now a separate responsibility of `runtime_pr
 - transition workspace width/height/fps generation
 - transition prompt/spec width/height/fps generation
 - transition foreground travel scaled from canvas size
-- scene background cover-scale geometry
-- parallax transition background cover-scale geometry
+- scene background native-or-cover geometry
+- parallax transition background native-or-cover geometry
+- transition-handle artifact and scene-manifest width/height/fps validation
 - transition staging manifest width/height/fps validation
+- rendered-clip width/height/fps verification
 - bounded background upscaling with a 1.10× fail-closed ceiling
+- CI TypeScript checks for both scene and transition Remotion templates
 
 ## Remaining work before enabling 1080 × 1920 production
 
 1. Replace remaining hard-coded canvas/safe-zone wording in Worker and Critic prompts with `VideoProfile.safe_zone_prompt()` or equivalent generated contracts.
 2. Replace final ffmpeg subtitle `original_size` and margins with profile-derived values everywhere in the delivery path.
-3. Audit any scene-manifest writers so width/height/fps always come from generated scene metadata rather than remembered constants.
-4. Run the fixed `benchmarks/corpus-v1` corpus through visual, motion, transition, subtitle and assembly checks for both profiles.
-5. Add an explicit production-profile benchmark comparison so 9:16 must meet or beat the 3:4 baseline on quality and failure rate.
-6. Only after those checks pass, relax the 1080 × 1440 production compatibility validation in `config.py`.
+3. Run the fixed `benchmarks/corpus-v1` corpus through visual, motion, transition, subtitle and assembly checks for both profiles.
+4. Add an explicit production-profile benchmark comparison so 9:16 must meet or beat the 3:4 baseline on quality and failure rate.
+5. Only after those checks pass, relax the 1080 × 1440 production compatibility validation in `config.py`.
 
 ## Fixed regression corpus
 
