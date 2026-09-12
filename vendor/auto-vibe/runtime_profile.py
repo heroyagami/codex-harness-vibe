@@ -112,7 +112,9 @@ def background_cover_geometry(
         or background_height <= 0
     ):
         raise RuntimeProfileError("scene-plan background is missing positive integer dimensions")
-    scale = max(profile.width / background_width, profile.height / background_height)
+    # Never downscale the legacy shared texture. That preserves the current
+    # 1080x1440 crop exactly. Only upscale when a larger canvas needs it.
+    scale = max(1.0, profile.width / background_width, profile.height / background_height)
     rendered_width = background_width * scale
     rendered_height = background_height * scale
     return BackgroundCoverGeometry(
@@ -127,11 +129,10 @@ def background_cover_geometry(
 def validate_background_coverage(profile: RuntimeProfile, background: dict) -> BackgroundCoverGeometry:
     """Validate that a shared background can safely cover the runtime canvas.
 
-    The renderer uses CSS-style cover geometry. Small upscales are allowed so
-    legacy 1480x1840 texture backgrounds can cover the 1080x1920 migration
-    target without inventing a second asset set. Excessive upscaling remains
-    fail-closed because it would visibly soften the shared texture and make
-    transition crops inconsistent.
+    The renderer preserves native background scale when the source already
+    covers the canvas, and applies only the minimum upscale needed otherwise.
+    Small upscales are allowed so the legacy 1480x1840 texture can cover the
+    1080x1920 migration target. Excessive upscaling remains fail-closed.
     """
 
     geometry = background_cover_geometry(
