@@ -20,7 +20,7 @@ def png_dimensions(path: Path) -> tuple[int, int]:
 def background_cover_scale(profile: VideoProfile, width: int, height: int) -> float:
     if width <= 0 or height <= 0:
         return float("inf")
-    return max(profile.width / width, profile.height / height)
+    return max(1.0, profile.width / width, profile.height / height)
 
 
 def analyze_runtime_readiness(
@@ -63,7 +63,7 @@ def analyze_runtime_readiness(
     return {
         "profile": asdict(profile),
         "background_policy": {
-            "mode": "cover",
+            "mode": "native_or_cover_upscale",
             "max_upscale": max_background_upscale,
         },
         "backgrounds": background_metrics,
