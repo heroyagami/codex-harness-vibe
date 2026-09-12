@@ -1,6 +1,7 @@
 import React from "react";
 import { AbsoluteFill, Composition, Img, staticFile } from "remotion";
 import { DefaultScene } from "../scenes/DefaultScene";
+import { coverBackgroundGeometry } from "./background-geometry";
 import {
   BACKGROUND_ANCHOR,
   BACKGROUND_COLOR,
@@ -16,13 +17,21 @@ import {
 export const COMPOSITION_ID = "default";
 export const FOREGROUND_COMPOSITION_ID = "foreground";
 
+const geometry = coverBackgroundGeometry({
+  sourceWidth: BACKGROUND_WIDTH,
+  sourceHeight: BACKGROUND_HEIGHT,
+  canvasWidth: WIDTH,
+  canvasHeight: HEIGHT,
+  anchor: BACKGROUND_ANCHOR,
+});
+
 const backgroundStyle: React.CSSProperties = {
-  height: BACKGROUND_HEIGHT,
-  left: 0,
+  height: geometry.height,
+  left: geometry.left,
+  maxWidth: "none",
   position: "absolute",
-  top: 0,
-  transform: `translate3d(${-BACKGROUND_ANCHOR.x * (BACKGROUND_WIDTH - WIDTH)}px, ${-BACKGROUND_ANCHOR.y * (BACKGROUND_HEIGHT - HEIGHT)}px, 0)`,
-  width: BACKGROUND_WIDTH,
+  top: geometry.top,
+  width: geometry.width,
 };
 
 const BackgroundPlate: React.FC = () => (

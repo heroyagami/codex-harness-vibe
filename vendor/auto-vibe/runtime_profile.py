@@ -9,6 +9,7 @@ DEFAULT_WIDTH = 1080
 DEFAULT_HEIGHT = 1440
 DEFAULT_FPS = 30
 MAX_CANVAS_DIMENSION = 16384
+MAX_BACKGROUND_UPSCALE = 1.10
 
 
 class RuntimeProfileError(ValueError):
@@ -24,6 +25,15 @@ class RuntimeProfile:
     @property
     def name(self) -> str:
         return f"{self.width}x{self.height}@{self.fps}"
+
+
+@dataclass(frozen=True)
+class BackgroundCoverGeometry:
+    scale: float
+    rendered_width: float
+    rendered_height: float
+    overflow_x: float
+    overflow_y: float
 
 
 def _positive_int(value, *, field: str, maximum: int) -> int:
@@ -90,13 +100,51 @@ def read_runtime_profile(scene_plan_path: str | Path) -> RuntimeProfile:
     )
 
 
-def validate_background_coverage(profile: RuntimeProfile, background: dict) -> None:
-    width = background.get("width")
-    height = background.get("height")
-    if not isinstance(width, int) or not isinstance(height, int):
-        raise RuntimeProfileError("scene-plan background is missing integer dimensions")
-    if width < profile.width or height < profile.height:
+def background_cover_geometry(
+    profile: RuntimeProfile, *, background_width: int, background_height: int
+) -> BackgroundCoverGeometry:
+    if (
+        isinstance(background_width, bool)
+        or isinstance(background_height, bool)
+        or not isinstance(background_width, int)
+        or not isinstance(background_height, int)
+        or background_width <= 0
+        or background_height <= 0
+    ):
+        raise RuntimeProfileError("scene-plan background is missing positive integer dimensions")
+    # Never downscale the legacy shared texture. That preserves the current
+    # 1080x1440 crop exactly. Only upscale when a larger canvas needs it.
+    scale = max(1.0, profile.width / background_width, profile.height / background_height)
+    rendered_width = background_width * scale
+    rendered_height = background_height * scale
+    return BackgroundCoverGeometry(
+        scale=scale,
+        rendered_width=rendered_width,
+        rendered_height=rendered_height,
+        overflow_x=max(0.0, rendered_width - profile.width),
+        overflow_y=max(0.0, rendered_height - profile.height),
+    )
+
+
+def validate_background_coverage(profile: RuntimeProfile, background: dict) -> BackgroundCoverGeometry:
+    """Validate that a shared background can safely cover the runtime canvas.
+
+    The renderer preserves native background scale when the source already
+    covers the canvas, and applies only the minimum upscale needed otherwise.
+    Small upscales are allowed so the legacy 1480x1840 texture can cover the
+    1080x1920 migration target. Excessive upscaling remains fail-closed.
+    """
+
+    geometry = background_cover_geometry(
+        profile,
+        background_width=background.get("width"),
+        background_height=background.get("height"),
+    )
+    if geometry.scale > MAX_BACKGROUND_UPSCALE + 1e-9:
         raise RuntimeProfileError(
-            f"background {width}x{height} is smaller than runtime canvas "
-            f"{profile.width}x{profile.height}"
+            f"background {background['width']}x{background['height']} requires "
+            f"{geometry.scale:.3f}x upscale to cover runtime canvas "
+            f"{profile.width}x{profile.height}; maximum allowed is "
+            f"{MAX_BACKGROUND_UPSCALE:.2f}x"
         )
+    return geometry
