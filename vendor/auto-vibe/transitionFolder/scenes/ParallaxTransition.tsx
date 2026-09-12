@@ -7,6 +7,7 @@ import {
   staticFile,
   useCurrentFrame,
 } from "remotion";
+import { coverBackgroundGeometry } from "../remotion/background-geometry";
 import {
   BACKGROUND_COLOR,
   BACKGROUND_HEIGHT,
@@ -63,8 +64,13 @@ export const ParallaxTransition: React.FC = () => {
     [0, 1],
     [FROM_BACKGROUND_ANCHOR.y, TO_BACKGROUND_ANCHOR.y],
   );
-  const backgroundX = -anchorX * (BACKGROUND_WIDTH - WIDTH);
-  const backgroundY = -anchorY * (BACKGROUND_HEIGHT - HEIGHT);
+  const background = coverBackgroundGeometry({
+    sourceWidth: BACKGROUND_WIDTH,
+    sourceHeight: BACKGROUND_HEIGHT,
+    canvasWidth: WIDTH,
+    canvasHeight: HEIGHT,
+    anchor: { x: anchorX, y: anchorY },
+  });
   const foregroundTravelX =
     -Math.sign(TO_BACKGROUND_ANCHOR.x - FROM_BACKGROUND_ANCHOR.x) *
     FOREGROUND_TRAVEL;
@@ -87,12 +93,12 @@ export const ParallaxTransition: React.FC = () => {
       <Img
         src={INPUTS.background}
         style={{
-          height: BACKGROUND_HEIGHT,
-          left: 0,
+          height: background.height,
+          left: background.left,
+          maxWidth: "none",
           position: "absolute",
-          top: 0,
-          transform: `translate3d(${backgroundX}px, ${backgroundY}px, 0)`,
-          width: BACKGROUND_WIDTH,
+          top: background.top,
+          width: background.width,
         }}
       />
       <Panel
