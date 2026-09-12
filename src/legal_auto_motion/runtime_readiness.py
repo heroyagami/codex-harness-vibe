@@ -6,6 +6,9 @@ from pathlib import Path
 from .video_profile import VideoProfile
 
 
+MAX_BACKGROUND_UPSCALE = 1.10
+
+
 def png_dimensions(path: Path) -> tuple[int, int]:
     with path.open("rb") as handle:
         header = handle.read(24)
@@ -14,25 +17,56 @@ def png_dimensions(path: Path) -> tuple[int, int]:
     return int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")
 
 
+def background_cover_scale(profile: VideoProfile, width: int, height: int) -> float:
+    if width <= 0 or height <= 0:
+        return float("inf")
+    return max(profile.width / width, profile.height / height)
+
+
 def analyze_runtime_readiness(
     profile: VideoProfile,
     *,
     background_dimensions: list[tuple[str, int, int]],
     scene_runtime_dynamic: bool,
     transition_runtime_dynamic: bool,
+    scene_background_cover: bool = True,
+    transition_background_cover: bool = True,
+    max_background_upscale: float = MAX_BACKGROUND_UPSCALE,
 ) -> dict:
     blockers: list[str] = []
+    background_metrics: list[dict] = []
     for name, width, height in background_dimensions:
-        if width < profile.width or height < profile.height:
+        scale = background_cover_scale(profile, width, height)
+        background_metrics.append(
+            {
+                "name": name,
+                "width": width,
+                "height": height,
+                "cover_scale": None if scale == float("inf") else round(scale, 6),
+                "upscale_required": scale > 1.0,
+            }
+        )
+        if scale > max_background_upscale:
             blockers.append(
-                f"background {name} is {width}x{height}, smaller than canvas {profile.width}x{profile.height}"
+                f"background {name} requires {scale:.3f}x cover upscale for "
+                f"{profile.width}x{profile.height}; maximum allowed is "
+                f"{max_background_upscale:.2f}x"
             )
     if not scene_runtime_dynamic:
         blockers.append("scene runtime still contains fixed canvas dimensions")
     if not transition_runtime_dynamic:
         blockers.append("transition runtime still contains fixed canvas dimensions")
+    if not scene_background_cover:
+        blockers.append("scene runtime does not use cover-scale background geometry")
+    if not transition_background_cover:
+        blockers.append("transition runtime does not use cover-scale background geometry")
     return {
         "profile": asdict(profile),
+        "background_policy": {
+            "mode": "cover",
+            "max_upscale": max_background_upscale,
+        },
+        "backgrounds": background_metrics,
         "status": "ready" if not blockers else "blocked",
         "blockers": blockers,
     }
@@ -53,9 +87,13 @@ def repo_runtime_readiness(repo_root: Path, profile: VideoProfile) -> dict:
     transition_text = (vendor / "prepare-transitions.py").read_text(encoding="utf-8")
     scene_dynamic = "export const WIDTH = 1080" not in scene_text and '"width": 1080' not in scene_text
     transition_dynamic = "export const WIDTH = 1080" not in transition_text and '"width": 1080' not in transition_text
+    scene_root = (vendor / "sceneFolder" / "remotion" / "Root.tsx").read_text(encoding="utf-8")
+    parallax = (vendor / "transitionFolder" / "scenes" / "ParallaxTransition.tsx").read_text(encoding="utf-8")
     return analyze_runtime_readiness(
         profile,
         background_dimensions=backgrounds,
         scene_runtime_dynamic=scene_dynamic,
         transition_runtime_dynamic=transition_dynamic,
+        scene_background_cover="coverBackgroundGeometry" in scene_root,
+        transition_background_cover="coverBackgroundGeometry" in parallax,
     )
