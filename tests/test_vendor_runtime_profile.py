@@ -50,18 +50,28 @@ class VendorRuntimeProfileTests(unittest.TestCase):
         with self.assertRaises(module.RuntimeProfileError):
             module.read_runtime_profile(path)
 
-    def test_vertical_profile_fails_closed_when_background_is_too_short(self):
+    def test_vertical_profile_accepts_small_cover_upscale(self):
+        profile = module.RuntimeProfile(width=1080, height=1920, fps=30)
+        geometry = module.validate_background_coverage(
+            profile, {"width": 1480, "height": 1840}
+        )
+        self.assertAlmostEqual(geometry.scale, 1920 / 1840, places=6)
+        self.assertGreaterEqual(geometry.rendered_height, 1920)
+        self.assertGreaterEqual(geometry.rendered_width, 1080)
+
+    def test_excessive_background_upscale_fails_closed(self):
         profile = module.RuntimeProfile(width=1080, height=1920, fps=30)
         with self.assertRaises(module.RuntimeProfileError):
             module.validate_background_coverage(
-                profile, {"width": 1480, "height": 1840}
+                profile, {"width": 800, "height": 1000}
             )
 
     def test_current_profile_accepts_existing_background(self):
         profile = module.RuntimeProfile(width=1080, height=1440, fps=30)
-        module.validate_background_coverage(
+        geometry = module.validate_background_coverage(
             profile, {"width": 1480, "height": 1840}
         )
+        self.assertLessEqual(geometry.scale, 1.0)
 
 
 if __name__ == "__main__":
