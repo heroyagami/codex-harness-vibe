@@ -43,14 +43,17 @@ const main = () => {
   const spec = readSpec();
   if (
     typeof spec.output_file !== "string" ||
-    spec.fps !== 30 ||
-    spec.width !== 1080 ||
-    spec.height !== 1440 ||
+    !Number.isInteger(spec.fps) ||
+    spec.fps <= 0 ||
+    !Number.isInteger(spec.width) ||
+    spec.width <= 0 ||
+    !Number.isInteger(spec.height) ||
+    spec.height <= 0 ||
     !Number.isInteger(spec.duration_in_frames) ||
     spec.duration_in_frames < 1
   ) {
     fail(
-      "Render spec must define output_file, 30fps, 1080x1440, and duration_in_frames",
+      "Render spec must define output_file, positive fps/width/height, and duration_in_frames",
     );
   }
 
